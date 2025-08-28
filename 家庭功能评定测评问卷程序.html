@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>家庭功能测评量表 (Family Assessment Device)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for tabs and focus */
+        .tab-btn.active {
+            border-color: #3b82f6;
+            color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        input[type="radio"]:focus-visible + label {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+            border-radius: 0.25rem;
+        }
+        details > summary {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-5xl">
+        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <h1 class="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-2">家庭功能测评量表</h1>
+            <p class="text-center text-gray-500 mb-8">Family Assessment Device (FAD)</p>
+
+            <!-- Excel Import -->
+            <div id="excel-import-section" class="mb-8 pt-6 border-t border-gray-200">
+                <h2 class="text-lg font-semibold mb-3 text-gray-700">从Excel导入答案</h2>
+                <p class="text-sm text-gray-500 mb-4">文件格式要求：第一列为题号，第二列为父亲答案 (1-4)，第三列为母亲答案 (1-4)。文件不应包含标题行。</p>
+                <div class="flex flex-col sm:flex-row items-center gap-4">
+                    <input type="file" id="excel-file-input" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" accept=".xlsx, .xls, .csv">
+                    <button id="import-btn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-teal-300 w-full sm:w-auto flex-shrink-0">
+                        导入并计算
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabs for Father and Mother -->
+            <div class="mb-6 border-b border-gray-200">
+                <nav class="flex -mb-px space-x-4" aria-label="Tabs">
+                    <button id="tab-father" class="tab-btn active whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200">
+                        父亲问卷
+                    </button>
+                    <button id="tab-mother" class="tab-btn whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors duration-200">
+                        母亲问卷
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Questions Container -->
+            <div id="questionnaires">
+                <div id="father-questionnaire">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">父亲问卷</h2>
+                    <div id="father-questions-container" class="space-y-4">
+                        <!-- Father's questions will be dynamically inserted here -->
+                    </div>
+                </div>
+                <div id="mother-questionnaire" class="hidden">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">母亲问卷</h2>
+                    <div id="mother-questions-container" class="space-y-4">
+                        <!-- Mother's questions will be dynamically inserted here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <div class="mt-10 text-center">
+                <button id="calculate-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    计算分数
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Modal -->
+        <div id="results-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden transition-opacity duration-300">
+            <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-5xl w-full transform transition-all duration-300 scale-95 opacity-0 overflow-y-auto max-h-screen" id="results-content">
+                <h2 class="text-2xl font-bold text-center text-gray-900 mb-6">测评结果</h2>
+                
+                <div id="results-table-container" class="mb-8 overflow-x-auto">
+                    <!-- Results table will be injected here -->
+                </div>
+
+                <div id="interpretation-container" class="space-y-6">
+                    <h3 class="text-xl font-semibold text-gray-800 border-b pb-2">得分解读</h3>
+                    <!-- Detailed interpretations will be injected here -->
+                </div>
+
+                <div class="mt-8 text-center flex flex-col sm:flex-row justify-center gap-3">
+                    <button id="export-excel-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-blue-300">
+                        导出Excel
+                    </button>
+                    <button id="export-pdf-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-green-300">
+                        导出PDF
+                    </button>
+                    <button id="close-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-gray-300">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Error Message Box -->
+        <div id="error-box" class="fixed top-5 right-5 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-lg hidden transition-opacity duration-300" role="alert">
+            <p class="font-bold">错误</p>
+            <p id="error-message">请回答所有问题。</p>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const { jsPDF } = window.jspdf;
+            
+            // UI Elements
+            const calculateBtn = document.getElementById('calculate-btn');
+            const resultsModal = document.getElementById('results-modal');
+            const resultsContent = document.getElementById('results-content');
+            const closeBtn = document.getElementById('close-btn');
+            const exportPdfBtn = document.getElementById('export-pdf-btn');
+            const exportExcelBtn = document.getElementById('export-excel-btn');
+            const importBtn = document.getElementById('import-btn');
+            const fileInput = document.getElementById('excel-file-input');
+            const errorBox = document.getElementById('error-box');
+            const errorMessageEl = document.getElementById('error-message');
+            const tabFather = document.getElementById('tab-father');
+            const tabMother = document.getElementById('tab-mother');
+            const fatherQuestionnaire = document.getElementById('father-questionnaire');
+            const motherQuestionnaire = document.getElementById('mother-questionnaire');
+            const fatherQuestionsContainer = document.getElementById('father-questions-container');
+            const motherQuestionsContainer = document.getElementById('mother-questions-container');
+            const resultsTableContainer = document.getElementById('results-table-container');
+            const interpretationContainer = document.getElementById('interpretation-container');
+
+            let currentResultsData = null;
+            let currentUserAnswers = { father: [], mother: [] };
+
+            // FAD Questions and Scoring Configuration
+            const questions_zh = [
+                "由于我们彼此误解，难于安排一些家庭活动", "我们在住处附近解决大多数日常问题", "当家中有人烦恼时，其他人知道他为什么烦恼", "当你要求某人做某事时，你必须检查他们是否做了", "如果某人遇到麻烦时，其他人会过分关注", "发生危机时，我们能相互支持", "当发生了出乎意料的意外时，我们手足无措", "我们家时常把我们所需要的东西用光了", "我们相互都不愿意透露自己的感情", "我们家的家庭成员都尽到了各自的家庭职责", "我们不能相互讨论我们的忧愁", "我们常根据我们对问题的决定去行动", "你的事只有对别人也重要时，他们才会感兴趣", "从那些人正在谈的话中，你不明白其中一个人是怎么想的", "家务事没有由家庭成员充分分担", "每个人是什么样的，都能被别人认可", "你不按规矩办事。却很容易逃脱处分", "大家都把事情摆在桌面上说，而不用暗示的方法", "我们中有人缺乏感情", "遇到突然事件时，我们知道怎么处理", "我们避免谈及我们害怕和关注的事", "我们难得相互说出温存的感受", "我们遇到经济困难", "在我们家试图解决一个问题之后，我们通常要谈论这个问题是否已解决", "我们太以自我为中心", "我们能相互表达出自己的感受", "我们对梳妆服饰习惯无明确要求", "我们彼此间不表示爱意", "我们对人说话都直说，而不转弯抹角", "我们每个人都有特定的任务和职责", "家庭的情绪气氛很不好", "我们有惩罚人的原则", "只有当某事使我们都感兴趣时，我们才一起参加", "没有时间去做自己感兴趣的事", "我们常不把自己的想法说出来", "我们感到我们能被别人容忍", "只有当某件事对各人有利时，我们才相互感兴趣", "我们能解决大多数情绪上的烦恼", "在我们家，亲密和温存居次要地位", "我们讨论谁做家务", "在我们家对事情做出决定是困难的", "我们家的人只有在对自己有利时，才彼此关照", "我们相互间都很坦率", "我们不遵从任何规则和标准", "如果要人去做某件事，他们常需要别人提醒", "我们能够对如何解决问题做出决定", "如果原则被打破，我们不知道将会发生什么事", "在我们家任何事都行得通", "我们将温存表达出来", "我们镇静地面对涉及感情的问题", "我们不能和睦相处", "我们一生了气，就相互不说话", "一般来说，我们对分配给自己的家务活都感到不满意", "尽管我们用意良好，但还是过多地干预了彼此的生活", "我们有应付危险情况的原则", "我们相互信赖", "我们当众哭出声来", "我们没有合适的交通工具", "当我们不喜欢有的人的所作所为时，我们就会给他指出来", "我们想尽各种办法来解决问题"
+            ];
+            const questions_en = [
+                "We can't seem to plan anything because of our misunderstandings.", "We solve most of our daily problems around the house.", "When someone is upset in the family, others know why.", "When you ask someone to do something, you have to check if they did it.", "If someone is in trouble, others get too involved.", "In a crisis, we can turn to each other for support.", "We don't know what to do when an unexpected problem comes up.", "We often run out of the things we need in our house.", "We are reluctant to show our true feelings to each other.", "Family members in our home fulfill their responsibilities.", "We cannot talk about our sadness with each other.", "We usually act on our decisions about problems.", "Others are only interested in your business if it affects them too.", "You can't tell how a person is feeling from what they're saying.", "Household chores are not adequately shared among family members.", "Everyone is accepted for who they are.", "You can get away with breaking the rules.", "We say what's on our minds without being subtle.", "Some of us lack affection.", "We know how to handle emergencies.", "We avoid talking about things that scare or concern us.", "We rarely express tender feelings to each other.", "We have financial difficulties.", "After trying to solve a problem, we usually discuss whether it's resolved.", "We are too self-centered.", "We can express our feelings to each other.", "We have no clear rules about dress and grooming.", "We don't show affection to each other.", "We are direct with people, not roundabout.", "We each have specific tasks and responsibilities.", "The emotional atmosphere in the family is very negative.", "We have principles for punishment.", "We only participate in things together if they interest all of us.", "There's no time to do things I'm interested in.", "We often don't say what we're thinking.", "We feel we are tolerated by others.", "We are only interested in each other when it's beneficial.", "We can solve most of our emotional upsets.", "In our home, intimacy and tenderness are secondary.", "We discuss who does the chores.", "It's difficult to make decisions in our home.", "People in our family only look out for each other if it's to their advantage.", "We are very frank with each other.", "We don't follow any rules or standards.", "If you ask someone to do something, they often need a reminder.", "We are able to make decisions on how to solve problems.", "If a rule is broken, we don't know what will happen.", "Anything goes in our house.", "We express our affection.", "We face emotional problems calmly.", "We can't get along.", "When we're angry, we give each other the silent treatment.", "Generally, we are dissatisfied with our assigned chores.", "Despite our good intentions, we interfere too much in each other's lives.", "We have principles for handling dangerous situations.", "We trust each other.", "We cry in front of others.", "We don't have suitable transportation.", "When we don't like what someone is doing, we point it out.", "We try all sorts of ways to solve problems."
+            ];
+
+            const TOTAL_QUESTIONS = 60;
+            const options = [
+                { label: '很像', value: 1 },
+                { label: '像', value: 2 },
+                { label: '不像', value: 3 },
+                { label: '完全不像', value: 4 }
+            ];
+            const optionMap = { 1: '很像', 2: '像', 3: '不像', 4: '完全不像' };
+            const optionMapEn = { 1: 'Strongly Agree', 2: 'Agree', 3: 'Disagree', 4: 'Strongly Disagree' };
+
+
+            const dimensions = {
+                Prob: { name_zh: "问题解决", name_en: "Problem Solving", forward: [2, 12, 24, 38, 50, 60], reverse: [] },
+                Comm: { name_zh: "沟通", name_en: "Communication", forward: [3, 18, 29, 43, 59], reverse: [14, 22, 35, 52] },
+                Role: { name_zh: "角色", name_en: "Roles", forward: [10, 30, 40], reverse: [4, 8, 15, 23, 34, 45, 53, 58] },
+                Resp: { name_zh: "情感反应", name_en: "Affective Responsiveness", forward: [49, 57], reverse: [9, 19, 28, 39] },
+                Inv:  { name_zh: "情感介入", name_en: "Affective Involvement", forward: [], reverse: [5, 13, 25, 33, 37, 42, 54] },
+                Beh:  { name_zh: "行为控制", name_en: "Behavior Control", forward: [20, 32, 55], reverse: [7, 17, 27, 44, 47, 48] },
+                Gen:  { name_zh: "总功能", name_en: "General Functioning", forward: [6, 16, 26, 36, 46, 56], reverse: [1, 11, 21, 31, 41, 51] }
+            };
+
+            function generateQuestionsFor(parentType, container) {
+                let questionsHTML = '';
+                questions_zh.forEach((text, index) => {
+                    const i = index + 1;
+                    questionsHTML += `<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200"><span class="font-medium text-gray-700 mb-2 sm:mb-0">${i}. ${text}</span><div class="flex items-center space-x-4 flex-shrink-0">`;
+                    options.forEach(opt => {
+                        questionsHTML += `<div class="flex items-center"><input type="radio" id="${parentType}-q${i}-opt${opt.value}" name="${parentType}-q${i}" value="${opt.value}" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"><label for="${parentType}-q${i}-opt${opt.value}" class="ml-2 text-sm text-gray-600">${opt.label}</label></div>`;
+                    });
+                    questionsHTML += `</div></div>`;
+                });
+                container.innerHTML = questionsHTML;
+            }
+
+            function showError(message) {
+                errorMessageEl.textContent = message;
+                errorBox.classList.remove('hidden');
+                setTimeout(() => { errorBox.classList.add('hidden'); }, 3000);
+            }
+
+            function getAnswersFor(parentType) {
+                const answers = [];
+                for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
+                    const answerEl = document.querySelector(`input[name="${parentType}-q${i}"]:checked`);
+                    answers.push(answerEl ? parseInt(answerEl.value) : null);
+                }
+                return answers;
+            }
+
+            function performCalculation(fatherAnswers, motherAnswers) {
+                if (fatherAnswers.some(a => a === null) || motherAnswers.some(a => a === null)) {
+                    showError('请完成所有问卷的问题。');
+                    return;
+                }
+                currentUserAnswers = { father: fatherAnswers, mother: motherAnswers };
+                const results = {};
+                for (const key in dimensions) {
+                    results[key] = {
+                        key: key,
+                        name_zh: dimensions[key].name_zh,
+                        name_en: dimensions[key].name_en,
+                        fatherScore: calculateDimensionScore(dimensions[key], fatherAnswers),
+                        motherScore: calculateDimensionScore(dimensions[key], motherAnswers)
+                    };
+                }
+                displayResults(results);
+            }
+            
+            function calculateScoresFromForm() {
+                performCalculation(getAnswersFor('father'), getAnswersFor('mother'));
+            }
+
+            function calculateDimensionScore(dimension, answers) {
+                let totalScore = 0;
+                let count = 0;
+                dimension.forward.forEach(qNum => { totalScore += answers[qNum - 1]; count++; });
+                dimension.reverse.forEach(qNum => { totalScore += (5 - answers[qNum - 1]); count++; });
+                return count > 0 ? (totalScore / count).toFixed(2) : "0.00";
+            }
+
+            function getContributingQuestions(dimensionKey, parentType) {
+                const dim = dimensions[dimensionKey];
+                const answers = currentUserAnswers[parentType];
+                const contributingItems = [];
+                
+                dim.forward.forEach(qNum => {
+                    const itemAnswer = answers[qNum - 1];
+                    if (itemAnswer > 2) { // Score is > 2.0 for answers 3 or 4
+                        contributingItems.push({ qNum, text_zh: questions_zh[qNum - 1], text_en: questions_en[qNum - 1], answer: itemAnswer });
+                    }
+                });
+
+                dim.reverse.forEach(qNum => {
+                    const itemAnswer = answers[qNum - 1];
+                    if (itemAnswer < 3) { // Score (5-ans) is > 2.0 for answers 1 or 2
+                        contributingItems.push({ qNum, text_zh: questions_zh[qNum - 1], text_en: questions_en[qNum - 1], answer: itemAnswer });
+                    }
+                });
+                return contributingItems;
+            }
+
+            function displayResults(results) {
+                currentResultsData = results;
+                let tableHTML = `<table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-100"><tr><th scope="col" class="px-6 py-3 rounded-l-lg">维度</th><th scope="col" class="px-6 py-3">父亲得分</th><th scope="col" class="px-6 py-3">母亲得分</th><th scope="col" class="px-6 py-3">父亲状态</th><th scope="col" class="px-6 py-3 rounded-r-lg">母亲状态</th></tr></thead><tbody>`;
+                let interpretationHTML = '';
+
+                Object.values(results).forEach(dim => {
+                    const fatherScore = parseFloat(dim.fatherScore);
+                    const motherScore = parseFloat(dim.motherScore);
+                    
+                    const fatherStatus = fatherScore < 2.0 ? '良好' : '不佳';
+                    const motherStatus = motherScore < 2.0 ? '良好' : '不佳';
+                    const fatherStatusClass = fatherScore < 2.0 ? 'text-green-600' : 'text-red-600';
+                    const motherStatusClass = motherScore < 2.0 ? 'text-green-600' : 'text-red-600';
+
+                    let fatherStatusHTML = `<span class="font-semibold ${fatherStatusClass}">${fatherStatus}</span>`;
+                    if (fatherStatus === '不佳') {
+                        const items = getContributingQuestions(dim.key, 'father');
+                        let itemsHTML = items.map(item => `<li class="text-xs text-gray-800">${item.qNum}. ${item.text_zh} (您的回答: <strong>${optionMap[item.answer]}</strong>)</li>`).join('');
+                        fatherStatusHTML = `<details><summary class="font-semibold ${fatherStatusClass}">${fatherStatus}</summary><div class="pt-2 pl-4 mt-2 bg-gray-100 p-3 rounded-md"><ul class="list-disc list-inside space-y-1">${itemsHTML}</ul></div></details>`;
+                    }
+                    
+                    let motherStatusHTML = `<span class="font-semibold ${motherStatusClass}">${motherStatus}</span>`;
+                    if (motherStatus === '不佳') {
+                        const items = getContributingQuestions(dim.key, 'mother');
+                        let itemsHTML = items.map(item => `<li class="text-xs text-gray-800">${item.qNum}. ${item.text_zh} (您的回答: <strong>${optionMap[item.answer]}</strong>)</li>`).join('');
+                        motherStatusHTML = `<details><summary class="font-semibold ${motherStatusClass}">${motherStatus}</summary><div class="pt-2 pl-4 mt-2 bg-gray-100 p-3 rounded-md"><ul class="list-disc list-inside space-y-1">${itemsHTML}</ul></div></details>`;
+                    }
+
+                    tableHTML += `<tr class="bg-white border-b"><th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${dim.name_zh}</th><td class="px-6 py-4">${dim.fatherScore}</td><td class="px-6 py-4">${dim.motherScore}</td><td class="px-6 py-4">${fatherStatusHTML}</td><td class="px-6 py-4">${motherStatusHTML}</td></tr>`;
+                    interpretationHTML += generateChineseInterpretation(dim.name_zh, fatherScore, motherScore);
+                });
+
+                tableHTML += `</tbody></table>`;
+                resultsTableContainer.innerHTML = tableHTML;
+                interpretationContainer.innerHTML = `<h3 class="text-xl font-semibold text-gray-800 border-b pb-2">得分解读</h3>` + interpretationHTML;
+
+                resultsModal.classList.remove('hidden');
+                setTimeout(() => {
+                    resultsModal.classList.add('opacity-100');
+                    resultsContent.classList.remove('scale-95', 'opacity-0');
+                    resultsContent.classList.add('scale-100', 'opacity-100');
+                }, 10);
+            }
+
+            function generateChineseInterpretation(dimName, fatherScore, motherScore) {
+                 const interpretations = {
+                    "问题解决": { base: "该维度评估家庭在面对问题时的决策和解决能力。", father_gt: "父亲感知到的家庭问题解决困难程度高于母亲，可能认为家庭在决策时共识更难达成或效率更低。", mother_gt: "母亲感知到的家庭问题解决困难程度高于父亲，可能她觉得在处理家庭事务时遇到的阻力或混乱更多。", equal: "父母双方对家庭解决问题的能力感知相似。" }, "沟通": { base: "该维度评估家庭成员间信息交流的质量，包括清晰度和直接性。", father_gt: "父亲认为家庭沟通的障碍比母亲感知的要多，可能他觉得信息传达不清晰或存在误解。", mother_gt: "母亲认为家庭沟通不如父亲感知的顺畅，可能她感到在表达和倾听方面存在更多困难。", equal: "父母双方对家庭沟通模式的看法基本一致。" }, "角色": { base: "该维度评估家庭中成员角色的合理性与执行情况。", father_gt: "父亲可能觉得家庭角色分配或履行上存在更多混乱和不满，比如职责不清或有人未尽责。", mother_gt: "母亲可能对家庭角色的现状更为不满，可能她认为角色分工不公或执行不到位。", equal: "父母双方对家庭角色功能的感知趋于一致。" }, "情感反应": { base: "该维度评估家庭成员表达和体验情感的能力。", father_gt: "父亲感觉家庭在表达关爱、支持等温暖情感方面比母亲感觉的要弱，可能他觉得家庭情感氛围更受限。", mother_gt: "母亲感觉家庭的情感表达能力不如父亲感知的那么好，可能她更渴望家庭成员间有更多的情感流露。", equal: "父母双方对家庭情感反应能力的看法相似。" }, "情感介入": { base: "该维度评估家庭成员之间情感上的关注和参与程度。", father_gt: "父亲感知到的情感介入问题（可能是过度干涉或情感疏远）比母亲更严重。", mother_gt: "母亲感知到的情感介入问题（可能是过度卷入或冷漠）比父亲更严重。", equal: "父母双方对家庭成员间情感介入程度的看法基本一致。" }, "行为控制": { base: "该维度评估家庭对成员行为的规范和控制模式。", father_gt: "父亲可能认为家庭的行为规范（规则）存在更多问题，如过于严格、松散或矛盾。", mother_gt: "母亲可能对家庭的行为控制方式（如纪律、规矩）有更多不满，认为其存在不一致或不合理之处。", equal: "父母双方对家庭行为控制模式的感知相似。" }, "总功能": { base: "该维度综合反映家庭的整体运作情况。", father_gt: "父亲对家庭整体功能的评价低于母亲，认为家庭在整体运作上存在更多困难。", mother_gt: "母亲对家庭整体功能的评价低于父亲，认为家庭的整体健康度和运作效率有更多问题。", equal: "父母双方对家庭的整体功能感知基本一致。" }
+                };
+                let detail = '';
+                if (fatherScore > motherScore) detail = interpretations[dimName].father_gt;
+                else if (motherScore > fatherScore) detail = interpretations[dimName].mother_gt;
+                else detail = interpretations[dimName].equal;
+                return `<div class="bg-gray-50 p-4 rounded-lg"><p class="font-semibold text-gray-800">${dimName}</p><p class="text-sm text-gray-600 mt-1">${interpretations[dimName].base}</p><p class="text-sm text-gray-700 mt-2"><strong>对比分析：</strong> ${detail}</p></div>`;
+            }
+            
+            function closeModal() {
+                resultsModal.classList.remove('opacity-100');
+                resultsContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => { resultsModal.classList.add('hidden'); }, 300);
+            }
+
+            function exportToPDF() {
+                if (!currentResultsData) return;
+                const doc = new jsPDF();
+                const pageMargin = 14;
+                const pageWidth = doc.internal.pageSize.getWidth();
+                let finalY = 25; 
+
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(18);
+                doc.text("Family Assessment Device (FAD) Results", pageWidth / 2, 15, { align: 'center' });
+
+                const tableData = Object.values(currentResultsData).map(dim => {
+                    const fatherScore = parseFloat(dim.fatherScore);
+                    const motherScore = parseFloat(dim.motherScore);
+                    return [dim.name_en, dim.fatherScore, dim.motherScore, fatherScore < 2.0 ? 'Healthy' : 'Unhealthy', motherScore < 2.0 ? 'Healthy' : 'Unhealthy'];
+                });
+
+                doc.autoTable({
+                    head: [['Dimension', 'Father Score', 'Mother Score', 'Father Status', 'Mother Status']],
+                    body: tableData,
+                    startY: finalY,
+                    margin: { left: pageMargin, right: pageMargin },
+                    headStyles: { fillColor: [230, 230, 230], textColor: 20, fontStyle: 'bold' },
+                    theme: 'grid'
+                });
+                
+                finalY = doc.lastAutoTable.finalY + 15;
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(14);
+                doc.text("Interpretation Details", pageMargin, finalY);
+                finalY += 8;
+
+                const interpretations = {
+                    "Problem Solving": { base: "This dimension assesses the family's ability to make decisions and resolve problems.", father_gt: "The father perceives more difficulty in family problem-solving than the mother, possibly feeling that consensus is harder to reach or that decisions are less effective.", mother_gt: "The mother perceives more difficulty in family problem-solving than the father, perhaps feeling she encounters more resistance or disorganization in handling family matters.", equal: "Both parents have a similar perception of the family's problem-solving abilities." },
+                    "Communication": { base: "This dimension assesses the quality of information exchange among family members, including clarity and directness.", father_gt: "The father perceives more communication barriers than the mother, possibly feeling that messages are unclear or misunderstood.", mother_gt: "The mother feels that family communication is less smooth than the father perceives, perhaps experiencing more difficulties in expression and listening.", equal: "Both parents have a largely consistent view of the family's communication patterns." },
+                    "Roles": { base: "This dimension assesses the appropriateness and execution of roles within the family.", father_gt: "The father may feel there is more confusion or dissatisfaction with role allocation or performance, such as unclear responsibilities or members not fulfilling their duties.", mother_gt: "The mother may be more dissatisfied with the current state of family roles, possibly believing the division of labor is unfair or poorly executed.", equal: "Both parents' perceptions of family role functioning are aligned." },
+                    "Affective Responsiveness": { base: "This dimension assesses the family's ability to express and experience emotions.", father_gt: "The father feels the family is weaker at expressing warm emotions like love and support than the mother does, possibly perceiving a more restricted emotional atmosphere.", mother_gt: "The mother feels the family's capacity for emotional expression is not as good as the father perceives, perhaps desiring more emotional sharing among members.", equal: "Both parents have a similar view of the family's affective responsiveness." },
+                    "Affective Involvement": { base: "This dimension assesses the degree of emotional concern and engagement among family members.", father_gt: "The father perceives more severe issues with affective involvement (either over-involvement or emotional distance) than the mother.", mother_gt: "The mother perceives more severe issues with affective involvement (either over-involvement or coldness) than the father.", equal: "Both parents have a largely consistent view of the degree of affective involvement among family members." },
+                    "Behavior Control": { base: "This dimension assesses the family's pattern of regulating and controlling members' behavior.", father_gt: "The father may believe there are more problems with the family's behavioral standards (rules), such as being too strict, lenient, or inconsistent.", mother_gt: "The mother may have more dissatisfaction with the family's methods of behavior control (e.g., discipline, rules), viewing them as inconsistent or unreasonable.", equal: "Both parents perceive the family's behavior control patterns similarly." },
+                    "General Functioning": { base: "This dimension provides an overall reflection of the family's functioning.", father_gt: "The father's assessment of the family's overall functioning is lower than the mother's, believing there are more difficulties in its general operation.", mother_gt: "The mother's assessment of the family's overall functioning is lower than the father's, perceiving more issues with the family's overall health and operational efficiency.", equal: "Both parents have a similar perception of the family's overall functioning." }
+                };
+
+                Object.values(currentResultsData).forEach(dim => {
+                    if (finalY > 260) { 
+                        doc.addPage();
+                        finalY = 20;
+                    }
+                    
+                    const fatherScore = parseFloat(dim.fatherScore);
+                    const motherScore = parseFloat(dim.motherScore);
+                    const interp = interpretations[dim.name_en];
+                    
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(12);
+                    doc.text(dim.name_en, pageMargin, finalY);
+                    finalY += 6;
+
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(10);
+                    let baseText = doc.splitTextToSize(`- Base: ${interp.base}`, pageWidth - (pageMargin * 2) - 2);
+                    doc.text(baseText, pageMargin + 2, finalY);
+                    finalY += (baseText.length * 4) + 2;
+
+                    let detail = '';
+                    if (fatherScore > motherScore) detail = interp.father_gt;
+                    else if (motherScore > fatherScore) detail = interp.mother_gt;
+                    else detail = interp.equal;
+                    let detailText = doc.splitTextToSize(`- Comparative: ${detail}`, pageWidth - (pageMargin * 2) - 2);
+                    doc.text(detailText, pageMargin + 2, finalY);
+                    finalY += (detailText.length * 4) + 4;
+
+                    if (fatherScore >= 2.0) {
+                        const items = getContributingQuestions(dim.key, 'father');
+                        if (items.length > 0) {
+                            doc.setFont("helvetica", "bolditalic");
+                            doc.text("Items contributing to Father's Unhealthy score:", pageMargin + 2, finalY);
+                            finalY += 5;
+                            doc.setFont("helvetica", "normal");
+                            items.forEach(item => {
+                                if (finalY > 275) { doc.addPage(); finalY = 20; }
+                                let itemText = doc.splitTextToSize(`  - Q${item.qNum}: ${item.text_en} (Answer: ${optionMapEn[item.answer]})`, pageWidth - (pageMargin * 2) - 6);
+                                doc.text(itemText, pageMargin + 4, finalY);
+                                finalY += (itemText.length * 4) + 1;
+                            });
+                            finalY += 3;
+                        }
+                    }
+                    if (motherScore >= 2.0) {
+                         const items = getContributingQuestions(dim.key, 'mother');
+                        if (items.length > 0) {
+                            doc.setFont("helvetica", "bolditalic");
+                            doc.text("Items contributing to Mother's Unhealthy score:", pageMargin + 2, finalY);
+                            finalY += 5;
+                            doc.setFont("helvetica", "normal");
+                            items.forEach(item => {
+                                if (finalY > 275) { doc.addPage(); finalY = 20; }
+                                let itemText = doc.splitTextToSize(`  - Q${item.qNum}: ${item.text_en} (Answer: ${optionMapEn[item.answer]})`, pageWidth - (pageMargin * 2) - 6);
+                                doc.text(itemText, pageMargin + 4, finalY);
+                                finalY += (itemText.length * 4) + 1;
+                            });
+                            finalY += 3;
+                        }
+                    }
+                    
+                    doc.setDrawColor(200, 200, 200);
+                    doc.line(pageMargin, finalY, pageWidth - pageMargin, finalY);
+                    finalY += 8;
+                });
+
+                doc.save("Family-Function-Results-EN.pdf");
+            }
+
+            function exportToExcel() {
+                if (!currentUserAnswers.father.length || !currentUserAnswers.mother.length) {
+                    showError("没有可导出的答案。请先完成问卷或导入数据。");
+                    return;
+                }
+                const data = [["Question No.", "Question (Chinese)", "Question (English)", "Father's Answer (1-4)", "Mother's Answer (1-4)"]];
+                for (let i = 0; i < TOTAL_QUESTIONS; i++) {
+                    data.push([ i + 1, questions_zh[i], questions_en[i], currentUserAnswers.father[i], currentUserAnswers.mother[i] ]);
+                }
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "FAD Answers");
+                XLSX.writeFile(wb, "Family-Assessment-Answers.xlsx");
+            }
+
+            function handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const sheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[sheetName];
+                        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); 
+
+                        if (json.length < TOTAL_QUESTIONS) throw new Error(`Excel文件内容不完整，应包含 ${TOTAL_QUESTIONS} 行答案。`);
+
+                        const fatherAnswers = [];
+                        const motherAnswers = [];
+                        for (let i = 0; i < TOTAL_QUESTIONS; i++) {
+                            const row = json[i];
+                            const qNum = i + 1;
+                            if (!row || row[1] === undefined || row[2] === undefined) throw new Error(`第 ${qNum} 行答案缺失或格式不正确。`);
+                            const fatherAns = parseInt(row[1]);
+                            const motherAns = parseInt(row[2]);
+                            if (isNaN(fatherAns) || fatherAns < 1 || fatherAns > 4) throw new Error(`第 ${qNum} 行父亲的答案 "${row[1]}" 无效。`);
+                            if (isNaN(motherAns) || motherAns < 1 || motherAns > 4) throw new Error(`第 ${qNum} 行母亲的答案 "${row[2]}" 无效。`);
+                            fatherAnswers.push(fatherAns);
+                            motherAnswers.push(motherAns);
+                        }
+                        populateForm(fatherAnswers, 'father');
+                        populateForm(motherAnswers, 'mother');
+                        performCalculation(fatherAnswers, motherAnswers);
+                    } catch (err) {
+                        showError(`文件处理失败: ${err.message}`);
+                    } finally {
+                        fileInput.value = '';
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            function populateForm(answers, parentType) {
+                answers.forEach((ans, index) => {
+                    const qNum = index + 1;
+                    const radioBtn = document.getElementById(`${parentType}-q${qNum}-opt${ans}`);
+                    if (radioBtn) radioBtn.checked = true;
+                });
+            }
+
+            function switchTab(tab) {
+                if (tab === 'father') {
+                    tabFather.classList.add('active');
+                    tabMother.classList.remove('active');
+                    fatherQuestionnaire.classList.remove('hidden');
+                    motherQuestionnaire.classList.add('hidden');
+                } else {
+                    tabMother.classList.add('active');
+                    tabFather.classList.remove('active');
+                    motherQuestionnaire.classList.remove('hidden');
+                    fatherQuestionnaire.classList.add('hidden');
+                }
+            }
+
+            // Event Listeners
+            calculateBtn.addEventListener('click', calculateScoresFromForm);
+            closeBtn.addEventListener('click', closeModal);
+            exportPdfBtn.addEventListener('click', exportToPDF);
+            exportExcelBtn.addEventListener('click', exportToExcel);
+            importBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileUpload);
+            resultsModal.addEventListener('click', (e) => { if (e.target === resultsModal) closeModal(); });
+            tabFather.addEventListener('click', () => switchTab('father'));
+            tabMother.addEventListener('click', () => switchTab('mother'));
+
+            // Initial setup
+            generateQuestionsFor('father', fatherQuestionsContainer);
+            generateQuestionsFor('mother', motherQuestionsContainer);
+        });
+    </script>
+
+</body>
+</html>

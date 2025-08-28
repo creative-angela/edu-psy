@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big Five Personality Questionnaire</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        input[type="radio"]:focus-visible + label {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-4xl">
+        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <h1 class="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-2">大五人格问卷</h1>
+            <p class="text-center text-gray-500 mb-8">Big Five Personality Questionnaire</p>
+            <p class="text-center text-sm text-gray-600 mb-2">指导语：请认真阅读下面的每个句子，判断句中的描述符合你的情况的程度。请选择1-5来表示你认为的符合程度，数字越大表示越符合。</p>
+            <p class="text-center text-xs text-gray-500 mb-8">(1-十分不赞同, 2-不太赞同, 3-不能确定, 4-比较赞同, 5-十分赞同)</p>
+
+            <!-- Excel Import -->
+            <div id="excel-import-section" class="mt-8 pt-6 border-t border-gray-200">
+                <h2 class="text-lg font-semibold mb-3 text-gray-700">从Excel导入答案 (Import Answers from Excel)</h2>
+                <p class="text-sm text-gray-500 mb-4">文件格式要求：第一列为题号，第二列为答案 (1-5)。</p>
+                <div class="flex flex-col sm:flex-row items-center gap-4">
+                    <input type="file" id="excel-file-input" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" accept=".xlsx, .xls">
+                    <button id="import-btn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-teal-300 w-full sm:w-auto flex-shrink-0">
+                        导入并计算
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Questions Grid -->
+            <div id="questions-container" class="space-y-4 mt-8 pt-6 border-t border-gray-200">
+                 <h2 class="text-lg font-semibold mb-3 text-gray-700">在线完成问卷 (Complete Online)</h2>
+            </div>
+
+            <!-- Action Button -->
+            <div class="mt-10 text-center">
+                <button id="calculate-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    计算分数 (Calculate Score)
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Modal -->
+        <div id="results-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden transition-opacity duration-300">
+            <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-3xl w-full transform transition-all duration-300 scale-95 opacity-0 overflow-y-auto max-h-screen" id="results-content">
+                <h2 class="text-2xl font-bold text-center text-gray-900 mb-6">测评结果 (Results)</h2>
+                <div id="results-display-container" class="space-y-8">
+                    <!-- Results charts and table will be injected here -->
+                </div>
+                <div class="mt-8 text-center flex flex-col sm:flex-row justify-center gap-3">
+                     <button id="export-excel-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-blue-300">
+                        导出Excel
+                    </button>
+                    <button id="export-pdf-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-green-300">
+                        导出PDF
+                    </button>
+                    <button id="close-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-gray-300">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="error-box" class="fixed top-5 right-5 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-lg hidden transition-opacity duration-300" role="alert">
+            <p class="font-bold">错误 (Error)</p>
+            <p id="error-message">Please answer all questions.</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const { jsPDF } = window.jspdf;
+            const questionsContainer = document.getElementById('questions-container');
+            const calculateBtn = document.getElementById('calculate-btn');
+            const resultsModal = document.getElementById('results-modal');
+            const resultsContent = document.getElementById('results-content');
+            const resultsDisplayContainer = document.getElementById('results-display-container');
+            const closeBtn = document.getElementById('close-btn');
+            const exportPdfBtn = document.getElementById('export-pdf-btn');
+            const exportExcelBtn = document.getElementById('export-excel-btn');
+            const importBtn = document.getElementById('import-btn');
+            const fileInput = document.getElementById('excel-file-input');
+            const errorBox = document.getElementById('error-box');
+            const errorMessageEl = document.getElementById('error-message');
+
+            let currentResults = {};
+            let currentUserAnswers = [];
+
+            const questions = [
+                "我不是一个充满烦恼的人。", "我真的喜欢大部份我遇见的人。", "我不喜欢浪费时间去做白日梦。", "我会怀疑及讽刺别人的企图。", "在工作上，我是有效率又能胜任的。", "我很少感到恐惧及焦虑。", "我很喜欢与别人交谈。", "大自然和艺术的规律形态使我感到极为奥妙。", "我相信如果你允许别人占你的便宜，很多人都会这样做。", "我会保持我的物件整齐和清洁。", "我经常感到紧张及心神不定。", "我喜欢很多人在我周围。", "我对诗词只有少许感觉甚至无动於衷。", "如果需要，我会去操纵别人而达到我所想要的。", "我不是一个做事有条不紊的人。", "别人对待我的方式常使我感到愤怒。", "当我阅读一首诗或欣赏一件艺术品时，我有时会感到兴奋或惊喜。", "我一向喜欢单独工作。", "有些人觉得我自私又自我中心。", "我好像总是不能把事情安排得井井有条。", "我很少感到寂寞或忧郁。", "我宁愿我行我素也不愿成为别人的领袖。", "我很少注意自己在不同环境下的情绪或感觉。", "有些人觉得我冷漠又爱算计。", "我会尽心尽力完成一切分派给我的工作。", "有时我感到自已完全一文不值。", "我常常感到精力旺盛。", "当我找到了做事情的正确方法后，我会坚持采用这个方法。", "我通常会尽力体贴及顾虑周到。", "我有时不能做到我应有的可靠或可信。", "我很少感到忧郁或沮SA。", "我生活的节奏很快。", "我经常会去尝试新的及外国的食物。", "大部份认识我的人都喜欢我。", "当我做了承诺，通常我能贯彻到底。", "很多时候，当事情不对劲时，我会感到挫败及想放弃。", "我是一个十分活跃的人。", "我喜欢思考及把玩理论或抽象的观念。", "我宁愿与人合作，而不愿与人竞争。", "我有一套明确的目标，并能有条不紊地朝著它而工作。", "有时我会羞愧得想躲起来。", "我喜欢身历其境，置身於事件之中。", "我没有兴趣思索宇宙的规律或人类的情况。", "如果我不喜欢某一个人，我会让他知道。", "我努力完成我的目标。", "我经常感到自己不如别人。", "我并不是一个乐观主义者。", "我对思考性的事物充满好奇。", "我时常和家人及同事起争执。", "我凡事必追求卓越。", "我经常感到无助，并希望有人能解决我的问题。", "我是一个快乐、高兴的人。", "我相信让学生听富争论性的演讲只会混淆及误导他们的思想。", "我对自已有很高的评价。", "我颇能按照自已的步伐，把事情准时办妥。", "当我处于极大压力下，有时候我会感到好像精神崩溃似的。", "我很容易笑。", "我认为在道德问题上做决定时，我们应遵从宗教权威。", "在态度上，我是顽固不妥协的。", "我要花很多时间才能安顿下来工作。"
+            ];
+            const questions_en = [
+                "I am not a worrier.", "I really like most people I meet.", "I don't like to waste time daydreaming.", "I can be cynical and skeptical of others' intentions.", "I am efficient and competent in my work.", "I rarely feel fearful or anxious.", "I enjoy talking to people.", "The patterns of nature and art seem mysterious to me.", "I believe many people will take advantage of you if you let them.", "I keep my belongings neat and clean.", "I often feel tense and jittery.", "I like to have a lot of people around me.", "I have little to no feeling for poetry.", "I would manipulate people to get what I want if necessary.", "I am not a very methodical person.", "The way people treat me often makes me angry.", "Sometimes I feel a thrill or surprise when reading a poem or looking at a work of art.", "I have always preferred to work alone.", "Some people think I am selfish and self-centered.", "I never seem to be able to get my things in order.", "I rarely feel lonely or blue.", "I would rather go my own way than be a leader of others.", "I seldom pay much attention to my feelings or emotions in different situations.", "Some people think I'm cold and calculating.", "I do my best to complete any work assigned to me.", "Sometimes I feel completely worthless.", "I often feel full of energy.", "Once I find the right way to do something, I stick to it.", "I usually try my best to be thoughtful and considerate.", "Sometimes I fail to be as reliable or dependable as I should be.", "I rarely feel sad or depressed.", "I live a fast-paced life.", "I often try new and foreign foods.", "Most people who know me like me.", "When I make a commitment, I can usually be counted on to follow through.", "Many times, when things go wrong, I get discouraged and feel like giving up.", "I am a very active person.", "I enjoy thinking about and playing with theories or abstract ideas.", "I would rather cooperate with people than compete with them.", "I have a clear set of goals and work towards them in an orderly fashion.", "Sometimes I feel so ashamed I just want to hide.", "I like to be where the action is.", "I have no interest in speculating on the nature of the universe or the human condition.", "If I don't like someone, I let them know.", "I strive for excellence in everything I do.", "I often feel inferior to others.", "I am not an optimist.", "I am curious about intellectual matters.", "I often have arguments with my family and colleagues.", "I strive for excellence in everything I do.", "I often feel helpless and wish someone else could solve my problems.", "I am a cheerful, high-spirited person.", "I believe that letting students listen to controversial speakers can only confuse and mislead them.", "I have a very high opinion of myself.", "I am pretty good at pacing myself to get things done on time.", "When I'm under a great deal of stress, sometimes I feel like I'm going to pieces.", "I laugh easily.", "I believe we should look to religious authorities for decisions on moral issues.", "I am stubborn and unyielding in my attitudes.", "It takes me a lot of time to get down to work."
+            ];
+
+            const factors = {
+                'N': { name: '神经质 (Neuroticism)', name_en: 'Neuroticism', items: [1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56], reverse: [1, 6, 21, 31], low: 20.4, high: 38.8, scale: ['情绪稳定', '情绪不稳定'] },
+                'E': { name: '外倾性 (Extraversion)', name_en: 'Extraversion', items: [2, 7, 12, 18, 22, 27, 32, 37, 42, 47, 52, 57], reverse: [18, 22, 47], low: 26, high: 42, scale: ['内向', '外向'] },
+                'O': { name: '开放性 (Openness)', name_en: 'Openness', items: [3, 8, 13, 17, 23, 28, 33, 38, 43, 48, 53, 58], reverse: [3, 13, 23, 28, 43, 53, 58], low: 32, high: 47, scale: ['保守', '开放'] },
+                'A': { name: '友善性 (Agreeableness)', name_en: 'Agreeableness', items: [4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59], reverse: [4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59], low: 30, high: 48, scale: ['敌对', '友善'] },
+                'C': { name: '严谨性 (Conscientiousness)', name_en: 'Conscientiousness', items: [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60], reverse: [15, 20, 30, 60], low: 36, high: 44, scale: ['随意', '严谨'] }
+            };
+
+            function generateQuestions() {
+                let questionsHTML = '';
+                const options = ['1', '2', '3', '4', '5'];
+                questions.forEach((text, index) => {
+                    const i = index + 1;
+                    let optionsHTML = '';
+                    options.forEach((opt, val) => {
+                        const score = val + 1;
+                        optionsHTML += `<div class="flex items-center"><input type="radio" id="q${i}-${score}" name="q${i}" value="${score}" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"><label for="q${i}-${score}" class="ml-2 text-sm text-gray-600">${opt}</label></div>`;
+                    });
+                    questionsHTML += `
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <span class="font-medium text-gray-700 mb-2 sm:mb-0">${i}. ${text}</span>
+                            <div class="flex items-center space-x-2 sm:space-x-4 flex-wrap justify-center">${optionsHTML}</div>
+                        </div>`;
+                });
+                questionsContainer.innerHTML += questionsHTML;
+            }
+
+            function showError(message) {
+                errorMessageEl.textContent = message;
+                errorBox.classList.remove('hidden');
+                setTimeout(() => { errorBox.classList.add('hidden'); }, 3000);
+            }
+
+            function getAnswersFromForm() {
+                const answers = [];
+                for (let i = 1; i <= questions.length; i++) {
+                    const answerEl = document.querySelector(`input[name="q${i}"]:checked`);
+                    if (answerEl) {
+                        answers.push(parseInt(answerEl.value, 10));
+                    } else {
+                        answers.push(null);
+                    }
+                }
+                return answers;
+            }
+
+            function getInterpretation(score, factor) {
+                if (score <= factor.low) return { text: '典型低分', text_en: 'Typical Low Score', type: 'low' };
+                if (score >= factor.high) return { text: '典型高分', text_en: 'Typical High Score', type: 'high' };
+                return { text: '平均范围', text_en: 'Average Range', type: 'average' };
+            }
+
+            function performCalculation(answers) {
+                if (answers.some(a => a === null)) {
+                    showError(`请回答所有 ${questions.length} 个问题。`);
+                    return;
+                }
+                
+                currentUserAnswers = answers;
+                let results = {};
+                const options = ['十分不赞同', '不太赞同', '不能确定', '比较赞同', '十分赞同'];
+                const options_en = ['Strongly Disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly Agree'];
+
+                for (const factorId in factors) {
+                    const factor = factors[factorId];
+                    let rawScore = 0;
+                    let contributingItems = [];
+
+                    factor.items.forEach(itemIndex => {
+                        let userScore = answers[itemIndex - 1];
+                        let isReversed = factor.reverse.includes(itemIndex);
+                        let effectiveScore = isReversed ? (6 - userScore) : userScore;
+                        rawScore += effectiveScore;
+
+                        if ((!isReversed && userScore >= 4) || (isReversed && userScore <= 2)) {
+                            contributingItems.push({ id: itemIndex, text: questions_en[itemIndex - 1], answer: options[userScore - 1], answer_en: options_en[userScore - 1], type: 'high' });
+                        } else if ((!isReversed && userScore <= 2) || (isReversed && userScore >= 4)) {
+                            contributingItems.push({ id: itemIndex, text: questions_en[itemIndex - 1], answer: options[userScore - 1], answer_en: options_en[userScore - 1], type: 'low' });
+                        }
+                    });
+
+                    const interpretation = getInterpretation(rawScore, factor);
+                    let finalContributingItems = [];
+                    if (interpretation.type === 'high') {
+                        finalContributingItems = contributingItems.filter(item => item.type === 'high');
+                    } else if (interpretation.type === 'low') {
+                        finalContributingItems = contributingItems.filter(item => item.type === 'low');
+                    }
+                    
+                    results[factorId] = {
+                        name: factor.name,
+                        name_en: factor.name_en,
+                        score: rawScore,
+                        interpretation: interpretation.text,
+                        interpretation_en: interpretation.text_en,
+                        interpretationClass: interpretation.type === 'average' ? 'text-green-600' : 'text-red-600 font-bold',
+                        contributingItems: finalContributingItems,
+                        lowThreshold: factor.low,
+                        highThreshold: factor.high,
+                        scale: factor.scale
+                    };
+                }
+                displayResults(results);
+            }
+
+            function calculateScoreFromForm() {
+                const answers = getAnswersFromForm();
+                performCalculation(answers);
+            }
+            
+            function displayResults(results) {
+                currentResults = results;
+                let chartsHTML = '<div class="space-y-6">';
+                const minScore = 12; // 12 items * 1 point
+                const maxScore = 60; // 12 items * 5 points
+                const range = maxScore - minScore;
+
+                for (const factorId in results) {
+                    const res = results[factorId];
+                    const scorePercent = ((res.score - minScore) / range) * 100;
+                    const lowPercent = ((res.lowThreshold - minScore) / range) * 100;
+                    const highPercent = ((res.highThreshold - minScore) / range) * 100;
+
+                    chartsHTML += `
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-800">${res.name}</h4>
+                            <div class="flex justify-between text-sm font-medium text-gray-600 mt-1">
+                                <span>${res.scale[0]}</span>
+                                <span>${res.scale[1]}</span>
+                            </div>
+                            <div class="relative h-4 bg-gray-200 rounded-full mt-1">
+                                <div class="absolute h-full bg-gradient-to-r from-blue-300 via-green-300 to-red-300 rounded-full" style="width: 100%;"></div>
+                                <div class="absolute h-full border-l-2 border-gray-500" style="left: ${lowPercent}%;"></div>
+                                <div class="absolute h-full border-l-2 border-gray-500" style="left: ${highPercent}%;"></div>
+                                <div class="absolute top-[-4px] w-6 h-6 rounded-full bg-blue-600 border-2 border-white shadow-lg flex items-center justify-center" style="left: calc(${scorePercent}% - 12px);">
+                                    <span class="text-white text-xs font-bold">${res.score}</span>
+                                </div>
+                            </div>
+                             <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>低分区</span>
+                                <span class="flex-1 text-center">平均区</span>
+                                <span>高分区</span>
+                            </div>
+                        </div>
+                    `;
+                }
+                chartsHTML += '</div>';
+
+                let tableHTML = `<div class="mt-8 pt-8 border-t border-gray-200"><table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">维度</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">得分</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">结果</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">`;
+
+                for (const factorId in results) {
+                    const res = results[factorId];
+                    tableHTML += `
+                        <tr>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${res.name}</td>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">${res.score}</td>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm ${res.interpretationClass}">${res.interpretation}</td>
+                        </tr>`;
+                    if (res.contributingItems.length > 0) {
+                        const analysisTitle = res.interpretation.includes('高分') ? '以下回答主要导致了分数偏高：' : '以下回答主要导致了分数偏低：';
+                        tableHTML += `<tr class="bg-gray-50"><td colspan="3" class="px-4 py-2 text-xs text-gray-700">
+                            <details><summary class="cursor-pointer font-semibold">关键题目分析</summary>
+                            <div class="pt-2 pl-4">
+                                <p class="text-xs text-gray-500 mb-1">${analysisTitle}</p>
+                                <ul class="list-disc list-inside">`;
+                        res.contributingItems.forEach(item => {
+                            tableHTML += `<li class="text-xs">${item.id}. ${questions[item.id - 1]} (您的回答: <strong>${item.answer}</strong>)</li>`;
+                        });
+                        tableHTML += `</ul></div></details></td></tr>`;
+                    }
+                }
+                tableHTML += `</tbody></table></div>`;
+                resultsDisplayContainer.innerHTML = chartsHTML + tableHTML;
+                
+                resultsModal.classList.remove('hidden');
+                setTimeout(() => {
+                    resultsModal.classList.add('opacity-100');
+                    resultsContent.classList.remove('scale-95', 'opacity-0');
+                    resultsContent.classList.add('scale-100', 'opacity-100');
+                }, 10);
+            }
+
+            function closeModal() {
+                resultsModal.classList.remove('opacity-100');
+                resultsContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => { resultsModal.classList.add('hidden'); }, 300);
+            }
+
+            function exportToPDF() {
+                try {
+                    const doc = new jsPDF();
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(18);
+                    doc.text("Big Five Personality Questionnaire Results", 105, 15, { align: 'center' });
+
+                    let finalY = 25;
+                    
+                    const bodyData = Object.values(currentResults).map(res => {
+                        return [res.name_en, `${res.score} (Low: ${res.lowThreshold}, High: ${res.highThreshold})`, res.interpretation_en];
+                    });
+
+                    doc.autoTable({
+                        head: [['Dimension', 'Score (Range)', 'Result']],
+                        body: bodyData,
+                        startY: finalY,
+                        headStyles: { fillColor: [74, 85, 104] },
+                        styles: { font: 'helvetica', fontSize: 10 },
+                    });
+                    finalY = doc.lastAutoTable.finalY + 10;
+
+                    for (const factorId in currentResults) {
+                        const res = currentResults[factorId];
+                        if (res.contributingItems.length > 0) {
+                            if (finalY > 260) { doc.addPage(); finalY = 20; }
+                            doc.setFont("helvetica", "bold");
+                            doc.setFontSize(10);
+                            doc.text(`Key Item Analysis for: ${res.name_en}`, 14, finalY);
+                            finalY += 5;
+                            doc.setFont("helvetica", "normal");
+                            doc.setFontSize(8);
+                            const itemsText = res.contributingItems.map(item => `Q${item.id}: ${item.text} (Answer: "${item.answer_en}")`).join('\n');
+                            const splitText = doc.splitTextToSize(itemsText, 180);
+                            doc.text(splitText, 16, finalY);
+                            finalY += (splitText.length * 3.5) + 5;
+                        }
+                    }
+
+                    doc.save("Big-Five-Results.pdf");
+                } catch (err) {
+                    console.error("PDF Export Error:", err);
+                    showError("导出PDF失败 (Failed to export PDF.)");
+                }
+            }
+
+            function exportToExcel() {
+                const data = [["Question No.", "Question (Chinese)", "Question (English)", "Answer (1-5)"]];
+                const answerLabels = ['十分不赞同', '不太赞同', '不能确定', '比较赞同', '十分赞同'];
+                for(let i = 0; i < questions.length; i++) {
+                    const answerValue = currentUserAnswers[i];
+                    data.push([i + 1, questions[i], questions_en[i], `${answerValue} (${answerLabels[answerValue-1]})`]);
+                }
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Answers");
+                XLSX.writeFile(wb, "Big-Five-Answers.xlsx");
+            }
+
+            function handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        const sheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[sheetName];
+                        const json = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                        
+                        if (json.length < questions.length) { 
+                            throw new Error(`Excel文件内容不完整，应包含 ${questions.length} 行答案。`);
+                        }
+
+                        const answers = [];
+                        for (let i = 0; i < questions.length; i++) {
+                            const row = json[i];
+                            const questionNumber = i + 1;
+                            if (!row || row[1] === undefined || row[1] === null) throw new Error(`第 ${questionNumber} 行答案缺失。`);
+                            const answer = parseInt(row[1], 10);
+                            if (isNaN(answer) || answer < 1 || answer > 5) throw new Error(`第 ${questionNumber} 行的答案 "${row[1]}" 无效，请输入 1-5。`);
+                            answers.push(answer);
+                        }
+                        performCalculation(answers);
+                    } catch (err) {
+                        showError(`文件处理失败: ${err.message}`);
+                    } finally {
+                        fileInput.value = '';
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            calculateBtn.addEventListener('click', calculateScoreFromForm);
+            closeBtn.addEventListener('click', closeModal);
+            exportPdfBtn.addEventListener('click', exportToPDF);
+            exportExcelBtn.addEventListener('click', exportToExcel);
+            importBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileUpload);
+            resultsModal.addEventListener('click', (e) => {
+                if (e.target === resultsModal) closeModal();
+            });
+
+            generateQuestions();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>霍兰德职业兴趣测评量表</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Helvetica Neue', 'Hiragino Sans GB', 'WenQuanYi Micro Hei', 'Microsoft Yahei', sans-serif;
+        }
+        /* Custom focus styles for accessibility */
+        input[type="radio"]:focus-visible + label {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+            border-radius: 0.25rem;
+        }
+        .details-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .details-row.open .details-content {
+            max-height: 500px; /* Adjust as needed */
+        }
+        .details-row summary::-webkit-details-marker {
+            display: none;
+        }
+        .details-row summary {
+            list-style: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-4xl">
+        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <h1 class="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-2">霍兰德职业兴趣测评量表</h1>
+            <p class="text-center text-gray-500 mb-8">Holland Vocational Interest Inventory</p>
+            <p class="text-sm text-gray-600 mb-6 text-center">指导语：请认真阅读以下内容，并根据您的实际情况进行选择，每一题只能选择一个最符合您的选项。</p>
+
+            <!-- Excel Import -->
+            <div id="excel-import-section" class="mt-8 pt-6 border-t border-gray-200">
+                <h2 class="text-lg font-semibold mb-3 text-gray-700">从Excel导入答案</h2>
+                <p class="text-sm text-gray-500 mb-4">请上传Excel文件。文件格式要求：第一列为题号，第二列为答案 (1-5的数字, 1代表非常不喜欢, 5代表非常喜欢)。</p>
+                <div class="flex flex-col sm:flex-row items-center gap-4">
+                    <input type="file" id="excel-file-input" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" accept=".xlsx, .xls">
+                    <button id="import-btn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-teal-300 w-full sm:w-auto flex-shrink-0">
+                        导入并计算
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Questions Grid -->
+            <div id="questions-container" class="space-y-4 mt-8 pt-6 border-t border-gray-200">
+                 <h2 class="text-lg font-semibold mb-3 text-gray-700">在线完成问卷</h2>
+                <!-- Questions will be dynamically inserted here -->
+            </div>
+
+            <!-- Action Button -->
+            <div class="mt-10 text-center">
+                <button id="calculate-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    计算分数
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Modal -->
+        <div id="results-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden transition-opacity duration-300">
+            <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-4xl w-full transform transition-all duration-300 scale-95 opacity-0 overflow-y-auto max-h-screen" id="results-content">
+                <h2 class="text-2xl font-bold text-center text-gray-900 mb-6">测评结果 (Results)</h2>
+                
+                <div class="text-center bg-gray-50 p-6 rounded-lg mb-6">
+                    <p class="text-lg text-gray-600">您的职业兴趣代码 (Your Holland Code):</p>
+                    <p id="holland-code" class="text-5xl font-extrabold text-blue-600 my-2">-</p>
+                </div>
+
+                <!-- Chart and Table Container -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <!-- Radar Chart -->
+                    <div class="w-full h-full min-h-[300px]">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+
+                    <!-- Interpretation Table -->
+                    <div id="results-table-container" class="w-full">
+                        <!-- Table will be injected here -->
+                    </div>
+                </div>
+
+
+                <div class="mt-8 text-center flex flex-col sm:flex-row justify-center gap-3">
+                     <button id="export-excel-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-blue-300">
+                        导出Excel
+                    </button>
+                    <button id="export-pdf-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-green-300">
+                        导出PDF
+                    </button>
+                    <button id="close-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-gray-300">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="error-box" class="fixed top-5 right-5 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-lg hidden transition-opacity duration-300" role="alert">
+            <p class="font-bold">错误</p>
+            <p id="error-message">Please answer all questions.</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Global Variables & DOM Elements ---
+            const { jsPDF } = window.jspdf;
+            const questionsContainer = document.getElementById('questions-container');
+            const calculateBtn = document.getElementById('calculate-btn');
+            const resultsModal = document.getElementById('results-modal');
+            const resultsContent = document.getElementById('results-content');
+            const closeBtn = document.getElementById('close-btn');
+            const exportPdfBtn = document.getElementById('export-pdf-btn');
+            const exportExcelBtn = document.getElementById('export-excel-btn');
+            const importBtn = document.getElementById('import-btn');
+            const fileInput = document.getElementById('excel-file-input');
+            const errorBox = document.getElementById('error-box');
+            const errorMessageEl = document.getElementById('error-message');
+            const hollandCodeEl = document.getElementById('holland-code');
+            const resultsTableContainer = document.getElementById('results-table-container');
+            const radarChartCanvas = document.getElementById('radarChart');
+            let radarChartInstance = null;
+            let currentResults = {};
+            let currentUserAnswers = [];
+            
+            // --- Data Definitions ---
+            const questions = {
+                // Using an object for easier lookup by question number (1-based index)
+                1: { text: "上物理课", text_en: "Attending physics class" },
+                2: { text: "上数学课", text_en: "Attending math class" },
+                3: { text: "上化学课", text_en: "Attending chemistry class" },
+                4: { text: "阅读天文方面的书籍或文章，喜欢与别人一起谈论天文知识", text_en: "Reading books or articles about astronomy and discussing it" },
+                5: { text: "对饲养动物的经验介绍感兴趣", text_en: "Interested in learning about animal husbandry" },
+                6: { text: "看到报刊上介绍医生生活与工作的文章，就想好好读一读", text_en: "Eager to read articles about the lives and work of doctors" },
+                7: { text: "看农业、植物学和动物学方面的读物", text_en: "Reading materials on agriculture, botany, and zoology" },
+                8: { text: "对森林保护和开发很关心", text_en: "Concerned about forest conservation and development" },
+                9: { text: "拿起世界文学名著就爱不释手", text_en: "Unable to put down world literature classics" },
+                10: { text: "看各种报纸、杂志，欣赏收音机和电视机中的各种节目", text_en: "Reading various newspapers, magazines, and enjoying radio/TV programs" },
+                11: { text: "上历史课", text_en: "Attending history class" },
+                12: { text: "剧院、博物馆和艺术展览会，对我有特殊的魅力", text_en: "Theaters, museums, and art exhibitions have a special charm for me" },
+                13: { text: "读地质勘探方面的文艺作品或科普读物", text_en: "Reading literary or popular science works on geological exploration" },
+                14: { text: "阅读有关世界各国文化、经济、国家制度方面的书籍杂志", text_en: "Reading books and magazines about world cultures, economies, and political systems" },
+                15: { text: "对公安工作方面的文章感兴趣", text_en: "Interested in articles about public security work" },
+                16: { text: "想多了解一点海员、飞行员的生活与工作情况", text_en: "Want to know more about the lives of sailors and pilots" },
+                17: { text: "先进少先队辅导员和模范教师的事迹，常使我感动", text_en: "Moved by the stories of model teachers and youth counselors" },
+                18: { text: "对机床构造和工作性能感兴趣", text_en: "Interested in the structure and performance of machine tools" },
+                19: { text: "对自己学习、生活和工作的环境作出评价", text_en: "Evaluating my own study, life, and work environment" },
+                20: { text: "对建筑师的事迹感兴趣", text_en: "Interested in the achievements of architects" },
+                21: { text: "对食品的制作和加工有特殊的爱好", text_en: "Have a special hobby for food preparation and processing" },
+                22: { text: "阅读有关技术方面的科普读物", text_en: "Reading popular science materials about technology" },
+                23: { text: "想知道电子仪器和无线电仪器的构造", text_en: "Want to know the structure of electronic and radio instruments" },
+                24: { text: "想看有关文艺评论的文章", text_en: "Want to read articles on literary and art criticism" },
+                25: { text: "到处寻找数学方面的科普读物和浅近的论文", text_en: "Searching for popular math readings and simple papers" },
+                26: { text: "关心新矿藏的发现与研究", text_en: "Concerned about the discovery and research of new mineral deposits" },
+                27: { text: "对介绍别的星球情况的广播、电视节目感兴趣", text_en: "Interested in broadcast/TV programs about other planets" },
+                28: { text: "羡慕用动物做实验的生物学家", text_en: "Admire biologists who conduct experiments on animals" },
+                29: { text: "想了解关于疾病的起因、治疗和病人护理方面的知识", text_en: "Want to learn about the causes, treatments of diseases, and patient care" },
+                30: { text: "经常观察花草树木和各种庄稼", text_en: "Frequently observing flowers, trees, and various crops" },
+                31: { text: "想到森林中去旅行、考察", text_en: "Want to travel and explore in the forest" },
+                32: { text: "关心物理学方面的新发现", text_en: "Concerned about new discoveries in physics" },
+                33: { text: "对国内外发生的大事很敏感，在班里常常第一个谈论这些事", text_en: "Sensitive to major domestic and international events, often the first to discuss them" },
+                34: { text: "读历史方面的书籍", text_en: "Reading history books" },
+                35: { text: "歌剧和交响乐使我陶醉", text_en: "Captivated by opera and symphony music" },
+                36: { text: "特别关心化学方面的新成就", text_en: "Particularly concerned about new achievements in chemistry" },
+                37: { text: "想知道地理方面的新发现", text_en: "Want to know about new discoveries in geography" },
+                38: { text: "当老师不在时，能主动维持班里学习和生活的正常秩序", text_en: "Can proactively maintain order when the teacher is absent" },
+                39: { text: "对铁路运输方面的情况感兴趣", text_en: "Interested in the railway transportation industry" },
+                40: { text: "愿意给同学讲解如何解一道难题，如何正确造句等", text_en: "Willing to explain difficult problems or correct sentence structures to classmates" },
+                41: { text: "想学会使用钳子、扳手、钢锯等工具", text_en: "Want to learn to use tools like pliers, wrenches, and hacksaws" },
+                42: { text: "做有关社会服务方面的笔记、卡片和报刊文章剪贴", text_en: "Making notes, cards, and clippings related to social services" },
+                43: { text: "了解建筑部门的新成就", text_en: "Learning about new achievements in the construction sector" },
+                44: { text: "对生产生活必需品的工厂感兴趣", text_en: "Interested in factories that produce daily necessities" },
+                45: { text: "想知道现代技术方面的新成就", text_en: "Want to know about new achievements in modern technology" },
+                46: { text: "看无线电技术方面的科普文章", text_en: "Reading popular science articles on radio technology" },
+                47: { text: "常常做一些物理方面的小实验", text_en: "Often conducting small physics experiments" },
+                48: { text: "愿意给比自己年纪小的孩子讲故事、读书，带他们玩", text_en: "Willing to tell stories, read books, and play with younger children" },
+                49: { text: "一上化学实验课就特别高兴", text_en: "Especially happy during chemistry lab class" },
+                50: { text: "非常羡慕那些能说出每一颗星座的名称和位置的人", text_en: "Greatly admire people who can name and locate constellations" },
+                51: { text: "集体外出活动时，愿意为大家安排吃饭休息等事项", text_en: "Willing to arrange meals and rest for everyone during group outings" },
+                52: { text: "想学会包扎和抢救伤员", text_en: "Want to learn how to bandage and rescue the injured" },
+                53: { text: "养鸡、养兔、种小片庄稼，并精心照料它们", text_en: "Raising chickens, rabbits, or growing small crops and taking good care of them" },
+                54: { text: "收集森林中的植物标本", text_en: "Collecting plant specimens in the forest" },
+                55: { text: "尝试着写些故事和诗歌", text_en: "Trying to write stories and poems" },
+                56: { text: "观察别人的行为和生活情况，热衷于学校和班里的黑板报工作", text_en: "Observing others' behavior and life, enthusiastic about school bulletin board work" },
+                57: { text: "参加或想参加学校历史小组，经常收集有关历史事件的资料", text_en: "Participating in or wanting to join the school history club to collect historical data" },
+                58: { text: "收集矿物、积累矿物方面的知识", text_en: "Collecting minerals and accumulating knowledge about them" },
+                59: { text: "朗诵诗、唱歌、很想参加学校文工团或演出小组", text_en: "Reciting poetry, singing, and wanting to join the school's performance troupe" },
+                60: { text: "对大自然和自己故乡的地理环境很感兴趣", text_en: "Very interested in nature and the geography of my hometown" },
+                61: { text: "对犯罪、家庭纠纷、民事诉讼等报道很感兴趣", text_en: "Very interested in reports on crime, family disputes, and civil litigation" },
+                62: { text: "爱驾驶摩托车和汽车", text_en: "Love driving motorcycles and cars" },
+                63: { text: "专门爱解复杂的数学题", text_en: "Enjoy solving complex math problems" },
+                64: { text: "制作各种零件，修理自行车等", text_en: "Making various parts, repairing bicycles, etc." },
+                65: { text: "经常观察动、植物的生长变化", text_en: "Frequently observing the growth and changes of animals and plants" },
+                66: { text: "参观建筑工地", text_en: "Visiting construction sites" },
+                67: { text: "经常动手裁剪衣服，对家里使用的电扇、电熨斗、洗衣机、缝纫机的质量与性能很了解", text_en: "Often tailoring clothes and understanding the quality of home appliances" },
+                68: { text: "自己动手装修自行车、缝纫机、钟表等", text_en: "DIY repairs on bicycles, sewing machines, clocks, etc." },
+                69: { text: "能修理收音机、电视机和简单的电子仪器", text_en: "Can repair radios, TVs, and simple electronic instruments" },
+                70: { text: "如果学校组织物理小组，我一定报名", text_en: "If the school organizes a physics club, I will definitely sign up" },
+                71: { text: "愿意协调民警和公安人员维护社会治安", text_en: "Willing to coordinate with police to maintain social order" },
+                72: { text: "设法在家里搞些化学小实验", text_en: "Trying to do some small chemistry experiments at home" },
+                73: { text: "很想参观天文馆和天文台", text_en: "Really want to visit a planetarium and observatory" },
+                74: { text: "积极报名参加生物小组", text_en: "Actively signing up for the biology club" },
+                75: { text: "很想在猴子、狗等动物身上做些医学实验", text_en: "Want to conduct medical experiments on animals like monkeys and dogs" },
+                76: { text: "设计安装收音机、扬声器和无线电仪器", text_en: "Designing and installing radios, speakers, and radio equipment" },
+                77: { text: "栽培树木，并精心管理他们", text_en: "Planting and carefully managing trees" },
+                78: { text: "善于查阅字典、词典和文学资料索引", text_en: "Good at using dictionaries and literary indexes" },
+                79: { text: "善于迅速的把注意力从一件事转到另一件事上去，并把每件事的原委弄得清清楚楚", text_en: "Good at quickly shifting focus and understanding the details of each matter" },
+                80: { text: "特别爱看历史题材的电影和戏剧", text_en: "Particularly love watching historical movies and dramas" },
+                81: { text: "弹奏乐器、爱好绘画、木刻和其他造型艺术", text_en: "Playing musical instruments, enjoying painting, woodcarving, and other visual arts" },
+                82: { text: "收集地质方面的文献、图片", text_en: "Collecting geological literature and pictures" },
+                83: { text: "如果组织地质考察，我将积极报名", text_en: "If a geological survey is organized, I will actively participate" },
+                84: { text: "已是或很想成为数学小组成员", text_en: "Am or want to be a member of the math club" },
+                85: { text: "向往当个海员或列车员", text_en: "Aspire to be a sailor or train conductor" },
+                86: { text: "对少先队辅导员工作感兴趣", text_en: "Interested in the work of a youth counselor" },
+                87: { text: "愿意在校办工厂参加劳动", text_en: "Willing to work in the school factory" },
+                88: { text: "当亲人、朋友、同学要买东西时，乐于给他们当顾问", text_en: "Happy to be a shopping advisor for friends and family" },
+                89: { text: "很羡慕建筑设计师的工作", text_en: "Greatly admire the work of architects" },
+                90: { text: "对生产手表、缝纫机和电视机的工人及纺织工人十分羡慕", text_en: "Greatly admire workers who produce watches, sewing machines, TVs, and textiles" },
+                91: { text: "从小就喜欢制作飞机、滑翔机和舰艇模型", text_en: "Enjoyed making model airplanes, gliders, and ships since childhood" },
+                92: { text: "能说出各种农作物的生长期及其特点", text_en: "Can describe the growth cycles and characteristics of various crops" },
+                93: { text: "经常有资格参加物理竞赛", text_en: "Often qualify for physics competitions" },
+                94: { text: "阅读教育学、心理学、教学经验方面的文章和书籍", text_en: "Reading articles and books on education, psychology, and teaching experience" },
+                95: { text: "遇到化学难题，哪怕花很长时间也要把他解出来", text_en: "Will spend a long time solving a difficult chemistry problem" },
+                96: { text: "对国内外发射的人造天体带回来的科研资料、外星球情况，很感兴趣", text_en: "Very interested in data from artificial satellites and information about exoplanets" },
+                97: { text: "做一些动物小实验", text_en: "Conducting small animal experiments" },
+                98: { text: "对人体的解剖生理特点和各器官功能，很感兴趣", text_en: "Very interested in human anatomy, physiology, and organ functions" },
+                99: { text: "想通过试验培育农作物新品种", text_en: "Want to breed new crop varieties through experiments" },
+                100: { text: "想当个伐木工或护林员", text_en: "Want to be a lumberjack or forest ranger" },
+                101: { text: "校正别人讲话中的不正确语音，大量收集各种词汇", text_en: "Correcting others' pronunciation and collecting a wide vocabulary" },
+                102: { text: "经常在日记中分析生活中的事件，文字简练、生动、风趣", text_en: "Often analyzing life events in a diary with concise, vivid, and witty writing" },
+                103: { text: "游览名胜古迹时，常仔细研究那些碑文、古诗而流连忘返", text_en: "Lingering over inscriptions and ancient poems when visiting historical sites" },
+                104: { text: "对艺术理论和艺术史很感兴趣", text_en: "Very interested in art theory and art history" },
+                105: { text: "能正确的说明地球的经纬度对时差的影响", text_en: "Can correctly explain the effect of longitude and latitude on time zones" },
+                106: { text: "做艰苦的长途旅行，在旅行中对地形地貌很感兴趣", text_en: "Interested in topography during arduous long-distance travel" },
+                107: { text: "羡慕律师和法学工作者的工作", text_en: "Admire the work of lawyers and legal professionals" },
+                108: { text: "长途汽车司机的工作对我很有吸引力", text_en: "The job of a long-distance bus driver is very attractive to me" },
+                109: { text: "常参加各种数学竞赛", text_en: "Often participating in various math competitions" },
+                110: { text: "认为重工业是最有气魄的行业", text_en: "Believe that heavy industry is the most impressive sector" },
+                111: { text: "在日常生活中愿意为人们提供各种帮助", text_en: "Willing to provide various kinds of help to people in daily life" },
+                112: { text: "能熟练使用锯、斧、凿等木工工具", text_en: "Proficient in using woodworking tools like saws, axes, and chisels" },
+                113: { text: "认为轻工业比重工业更好些", text_en: "Believe that light industry is better than heavy industry" },
+                114: { text: "能熟练的阅读技术图纸或图表", text_en: "Proficient in reading technical drawings or charts" },
+                115: { text: "会使用精密的电子仪器进行测量和计算", text_en: "Can use precision electronic instruments for measurement and calculation" },
+                116: { text: "阅读介绍牛顿、爱因斯坦、普朗克等人物的文章、书籍", text_en: "Reading articles and books about figures like Newton, Einstein, and Planck" },
+                117: { text: "听说一件工作需要用数学知识才能完成，马上就会产生兴趣", text_en: "Immediately interested when hearing a task requires mathematical knowledge" },
+                118: { text: "愿意并善于同各种人来往", text_en: "Willing and good at interacting with all kinds of people" },
+                119: { text: "对有关飞碟和外星球有没有生物的报道，十分感兴趣", text_en: "Very interested in reports about UFOs and extraterrestrial life" },
+                120: { text: "读有关著名生物学家生平的书籍", text_en: "Reading books about the lives of famous biologists" },
+                121: { text: "参加学校卫生保健小组", text_en: "Participating in the school health care group" },
+                122: { text: "开拖拉机，操纵农业机械", text_en: "Driving a tractor and operating agricultural machinery" },
+                123: { text: "关心林业方面的新成就", text_en: "Concerned about new achievements in forestry" },
+                124: { text: "对词语和成语的产生感兴趣", text_en: "Interested in the origins of words and idioms" },
+                125: { text: "进行复杂的绘图与设计", text_en: "Engaging in complex drawing and design" },
+                126: { text: "关心其他国家的历史", text_en: "Interested in the history of other countries" },
+                127: { text: "经常听音乐，并不止一遍的看同一个话剧、歌剧或舞蹈", text_en: "Often listening to music and watching the same play, opera, or dance more than once" },
+                128: { text: "阅读有关著名地质学家生活与活动的文章", text_en: "Reading articles about the lives and activities of famous geologists" },
+                129: { text: "研究地球各大洲的地理概况", text_en: "Studying the geography of the Earth's continents" },
+                130: { text: "能对朋友、熟人或文学作品中的人物的行动做出判断", text_en: "Able to judge the actions of friends, acquaintances, or literary characters" },
+                131: { text: "对交通运输工具的发展很关心", text_en: "Very concerned about the development of transportation" },
+                132: { text: "喜欢孩子，愿意教他们学知识，培养他们的好品质", text_en: "Like children, willing to teach them knowledge and cultivate good qualities" },
+                133: { text: "经常研究新的机器设备", text_en: "Often studying new machinery and equipment" },
+                134: { text: "听说一个任务与化学知识有关，立刻产生了兴趣", text_en: "Immediately interested when hearing a task is related to chemistry" },
+                135: { text: "动手做一些小型的模型", text_en: "Making some small models by hand" },
+                136: { text: "对轻工业品展览会很感兴趣", text_en: "Very interested in light industry product exhibitions" },
+                137: { text: "常给学校黑板报和杂志写稿，提出自己的建议", text_en: "Often writing for the school bulletin board and magazine to offer suggestions" },
+                138: { text: "会看较复杂的无线电路图", text_en: "Can read relatively complex wireless circuit diagrams" }
+            };
+            const TOTAL_QUESTIONS = Object.keys(questions).length;
+
+            const questionCategories = {
+                'R': { name: '现实型', name_en: 'Realistic', questions: [1, 5, 7, 8, 13, 16, 18, 21, 23, 30, 31, 39, 41, 44, 46, 53, 54, 60, 62, 64, 66, 67, 68, 69, 76, 77, 78, 85, 91, 92, 110, 112, 114, 115, 122, 133, 135, 136, 138] },
+                'I': { name: '研究型', name_en: 'Investigative', questions: [2, 3, 4, 22, 25, 26, 27, 28, 32, 36, 37, 45, 47, 49, 50, 58, 63, 65, 70, 72, 73, 74, 75, 84, 85, 93, 99, 105, 106, 109, 116, 117, 119, 120, 128, 129, 134] },
+                'A': { name: '艺术型', name_en: 'Artistic', questions: [9, 10, 11, 12, 20, 24, 34, 35, 43, 55, 57, 59, 80, 81, 82, 83, 89, 95, 96, 97, 98, 102, 103, 104, 125, 126, 127] },
+                'S': { name: '社会型', name_en: 'Social', questions: [6, 17, 29, 40, 42, 48, 52, 56, 61, 71, 86, 88, 94, 101, 107, 111, 113, 118, 124, 130, 132] },
+                'E': { name: '企业型', name_en: 'Enterprising', questions: [14, 15, 19, 33, 38, 79, 123, 131, 137] },
+                'C': { name: '常规型', name_en: 'Conventional', questions: [51, 87, 90, 100, 108, 121] }
+            };
+
+            const interpretations = {
+                R: { name_en: 'Realistic', description_en: 'Practical, hands-on, and action-oriented. Enjoys working with tools, machines, or animals. Suitable careers include engineer, mechanic, pilot, farmer, electrician.' },
+                I: { name_en: 'Investigative', description_en: 'Analytical, curious, and observant. Enjoys solving complex problems and working with ideas. Suitable careers include scientist, doctor, detective, programmer, researcher.' },
+                A: { name_en: 'Artistic', description_en: 'Creative, imaginative, and intuitive. Enjoys working in unstructured environments and expressing ideas. Suitable careers include artist, musician, writer, actor, designer.' },
+                S: { name_en: 'Social', description_en: 'Friendly, helpful, and empathetic. Enjoys working with people to teach, help, and inform. Suitable careers include teacher, nurse, counselor, social worker, HR specialist.' },
+                E: { name_en: 'Enterprising', description_en: 'Ambitious, persuasive, and energetic. Enjoys leading, influencing others, and taking risks for profit. Suitable careers include salesperson, entrepreneur, manager, lawyer, politician.' },
+                C: { name_en: 'Conventional', description_en: 'Organized, efficient, and detail-oriented. Enjoys working with data and following established procedures. Suitable careers include accountant, secretary, librarian, bank teller, quality inspector.' }
+            };
+
+            const options = [
+                { text: '非常不喜欢', value: 1 }, { text: '有点不喜欢', value: 2 }, { text: '吃不准', value: 3 },
+                { text: '有点喜欢', value: 4 }, { text: '非常喜欢', value: 5 }
+            ];
+
+            // --- UI Generation ---
+            function generateQuestions() {
+                questionsContainer.innerHTML += Object.entries(questions).map(([i, q]) => {
+                    const optionsHTML = options.map(opt => `
+                        <div class="flex items-center">
+                            <input type="radio" id="q${i}-${opt.value}" name="q${i}" value="${opt.value}" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                            <label for="q${i}-${opt.value}" class="ml-2 text-xs sm:text-sm text-gray-600">${opt.text}</label>
+                        </div>`).join('');
+                    return `
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <span class="font-medium text-gray-700 mb-2 sm:mb-0 text-sm">${i}. ${q.text}</span>
+                            <div class="flex items-center space-x-2 sm:space-x-4 flex-shrink-0 flex-wrap">${optionsHTML}</div>
+                        </div>`;
+                }).join('');
+            }
+
+            function showError(message) {
+                errorMessageEl.textContent = message;
+                errorBox.classList.remove('hidden');
+                setTimeout(() => { errorBox.classList.add('hidden'); }, 3000);
+            }
+
+            // --- Calculation Logic ---
+            function getAnswersFromForm() {
+                const answers = {};
+                for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
+                    const answerEl = document.querySelector(`input[name="q${i}"]:checked`);
+                    answers[i] = answerEl ? parseInt(answerEl.value, 10) : null;
+                }
+                return answers;
+            }
+
+            function performCalculation(answers) {
+                if (Object.values(answers).some(a => a === null)) {
+                    showError(`请回答所有 ${TOTAL_QUESTIONS} 个问题。`);
+                    return null;
+                }
+                
+                currentUserAnswers = answers;
+                let results = {};
+                
+                for (const code in questionCategories) {
+                    const category = questionCategories[code];
+                    const categoryQuestions = category.questions;
+                    const totalScore = categoryQuestions.reduce((sum, qNum) => sum + (answers[qNum] || 0), 0);
+                    const avgScore = totalScore / categoryQuestions.length;
+                    
+                    results[code] = {
+                        code,
+                        name: category.name,
+                        name_en: category.name_en,
+                        score: totalScore,
+                        avgScore: parseFloat(avgScore.toFixed(2)),
+                        questions: categoryQuestions,
+                        highScoreQuestions: categoryQuestions.filter(qNum => answers[qNum] >= 4),
+                        lowScoreQuestions: categoryQuestions.filter(qNum => answers[qNum] <= 2),
+                    };
+                }
+                return results;
+            }
+
+            function calculateAndShowResults() {
+                const answers = getAnswersFromForm();
+                const results = performCalculation(answers);
+                if (results) {
+                    displayResults(results);
+                }
+            }
+
+            // --- Display Results ---
+            function displayResults(results) {
+                // *** CHANGED: Sort by avgScore instead of score ***
+                const sortedScores = Object.values(results).sort((a, b) => b.avgScore - a.avgScore);
+                const hollandCode = sortedScores.slice(0, 3).map(item => item.code).join('');
+                currentResults = { results, sortedScores, hollandCode };
+                hollandCodeEl.textContent = hollandCode;
+
+                // 1. Display Radar Chart
+                createOrUpdateRadarChart(sortedScores);
+
+                // 2. Display Table
+                createResultsTable(sortedScores);
+
+                // 3. Show Modal
+                resultsModal.classList.remove('hidden');
+                setTimeout(() => {
+                    resultsModal.classList.add('opacity-100');
+                    resultsContent.classList.remove('scale-95', 'opacity-0');
+                    resultsContent.classList.add('scale-100', 'opacity-100');
+                }, 10);
+            }
+
+            function createOrUpdateRadarChart(sortedScores) {
+                const labels = sortedScores.map(item => `${item.name} (${item.code})`);
+                // *** CHANGED: Chart data is now avgScore ***
+                const data = sortedScores.map(item => item.avgScore);
+
+                if (radarChartInstance) {
+                    radarChartInstance.destroy();
+                }
+                radarChartInstance = new Chart(radarChartCanvas, {
+                    type: 'radar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '平均分 (Average Score)',
+                            data: data,
+                            fill: true,
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            borderColor: 'rgb(54, 162, 235)',
+                            pointBackgroundColor: 'rgb(54, 162, 235)',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: 'rgb(54, 162, 235)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        elements: { line: { tension: 0.1 } },
+                        scales: {
+                            r: {
+                                angleLines: { color: 'rgba(0, 0, 0, 0.1)' },
+                                grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                                pointLabels: { font: { size: 12 } },
+                                // *** CHANGED: Set scale for avgScore (1-5) ***
+                                suggestedMin: 0,
+                                suggestedMax: 5
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true // Keep legend on screen
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) { label += ': '; }
+                                        // *** CHANGED: Tooltip directly shows avgScore ***
+                                        label += context.raw.toFixed(2);
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function createResultsTable(sortedScores) {
+                // *** CHANGED: Slicing is now based on avgScore sorted array ***
+                const top3 = sortedScores.slice(0, 3);
+                const bottom3 = sortedScores.slice(-3).reverse();
+
+                const createSectionHTML = (title, data, type) => {
+                    const rowsHTML = data.map(item => {
+                        const questionList = type === 'high' ? item.highScoreQuestions : item.lowScoreQuestions;
+                        if (questionList.length === 0) {
+                            return `
+                                <div class="border-b border-gray-200">
+                                    <div class="grid grid-cols-2 gap-4 p-3 text-sm">
+                                        <span class="font-semibold">${item.name} (${item.code})</span>
+                                        <span class="text-center">${item.avgScore}</span>
+                                    </div>
+                                </div>`;
+                        }
+                        return `
+                            <details class="border-b border-gray-200 group">
+                                <summary class="grid grid-cols-2 gap-4 p-3 text-sm cursor-pointer hover:bg-gray-50 list-none">
+                                    <span class="font-semibold flex items-center">
+                                        ${item.name} (${item.code})
+                                        <svg class="w-4 h-4 ml-2 transform transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                    </span>
+                                    <span class="text-center">${item.avgScore}</span>
+                                </summary>
+                                <div class="bg-gray-50 p-3 border-t border-gray-200">
+                                    <ul class="list-disc list-inside space-y-1 text-xs text-gray-600">
+                                        ${questionList.map(qNum => `<li>${qNum}. ${questions[qNum].text}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            </details>`;
+                    }).join('');
+
+                    return `
+                        <div class="mb-4">
+                            <h4 class="text-md font-bold text-gray-800 p-2 bg-gray-100 rounded-t-lg">${title}</h4>
+                            <div class="border border-gray-200 rounded-b-lg">
+                                <div class="grid grid-cols-2 gap-4 p-3 bg-gray-50 font-bold text-xs text-gray-500 uppercase">
+                                    <span>维度</span><span class="text-center">平均分</span>
+                                </div>
+                                ${rowsHTML}
+                            </div>
+                        </div>`;
+                };
+                
+                resultsTableContainer.innerHTML = createSectionHTML('优势兴趣 (Top 3 Interests)', top3, 'high') + createSectionHTML('待发展兴趣 (Bottom 3 Interests)', bottom3, 'low');
+            }
+
+            function closeModal() {
+                resultsModal.classList.remove('opacity-100');
+                resultsContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => { resultsModal.classList.add('hidden'); }, 300);
+            }
+
+            // --- Import/Export ---
+            function exportToPDF() {
+                try {
+                    const doc = new jsPDF();
+                    const { sortedScores, hollandCode } = currentResults;
+
+                    // *** NEW: Temporarily hide the legend for a better aspect ratio in PDF ***
+                    radarChartInstance.options.plugins.legend.display = false;
+                    radarChartInstance.update();
+
+                    // Header
+                    doc.setFontSize(18);
+                    doc.text("Vocational Interest Inventory Results", 105, 15, { align: 'center' });
+                    doc.setFontSize(14);
+                    doc.text(`Your Holland Code: ${hollandCode}`, 14, 30);
+
+                    // Add Radar Chart Image
+                    const chartImage = radarChartCanvas.toDataURL('image/png');
+                    doc.addImage(chartImage, 'PNG', 55, 40, 100, 100);
+                    let finalY = 150; 
+
+                    // *** NEW: Restore the legend for the on-screen chart ***
+                    radarChartInstance.options.plugins.legend.display = true;
+                    radarChartInstance.update();
+
+                    // Add Table
+                    const top3 = sortedScores.slice(0, 3);
+                    const bottom3 = sortedScores.slice(-3).reverse();
+
+                    const generateTableBody = (data, type) => {
+                        let body = [];
+                        data.forEach(item => {
+                            body.push([
+                                { content: `${item.name_en} (${item.code})`, styles: { fontStyle: 'bold' } },
+                                { content: item.avgScore, styles: { halign: 'center' } }
+                            ]);
+                            const questionList = type === 'high' ? item.highScoreQuestions : item.lowScoreQuestions;
+                            if (questionList.length > 0) {
+                                const questionText = questionList.map(qNum => `- ${qNum}. ${questions[qNum].text_en}`).join('\n');
+                                body.push([{ content: questionText, colSpan: 2, styles: { fontSize: 8, fillColor: [245, 245, 245] } }]);
+                            }
+                        });
+                        return body;
+                    };
+
+                    doc.setFontSize(12);
+                    doc.text("Top 3 Interests (by Average Score)", 14, finalY);
+                    doc.autoTable({
+                        startY: finalY + 5,
+                        head: [['Dimension', 'Average Score']],
+                        body: generateTableBody(top3, 'high'),
+                        theme: 'grid',
+                        headStyles: { fillColor: [22, 160, 133] }
+                    });
+                    finalY = doc.lastAutoTable.finalY + 10;
+
+                    if (finalY > 220) { doc.addPage(); finalY = 20; }
+
+                    doc.setFontSize(12);
+                    doc.text("Bottom 3 Interests (by Average Score)", 14, finalY);
+                    doc.autoTable({
+                        startY: finalY + 5,
+                        head: [['Dimension', 'Average Score']],
+                        body: generateTableBody(bottom3, 'low'),
+                        theme: 'grid',
+                        headStyles: { fillColor: [211, 84, 0] }
+                    });
+
+                    doc.save("Vocational-Interest-Results.pdf");
+                } catch (err) {
+                    console.error("PDF Export Error:", err);
+                    showError("导出PDF失败 (Failed to export PDF.)");
+                }
+            }
+
+            function exportToExcel() {
+                const data = [["题号 (No.)", "题目 (Question)", "您的答案 (Your Answer, 1-5)"]];
+                for(let i = 1; i <= TOTAL_QUESTIONS; i++) {
+                    data.push([i, questions[i].text, currentUserAnswers[i]]);
+                }
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                ws['!cols'] = [{wch: 10}, {wch: 60}, {wch: 25}];
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Answers");
+                XLSX.writeFile(wb, "Vocational-Interest-Answers.xlsx");
+            }
+
+            function handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+                        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const json = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                        
+                        if (json.length < TOTAL_QUESTIONS) throw new Error(`Excel文件内容不完整，应包含 ${TOTAL_QUESTIONS} 行答案。`);
+
+                        const answers = {};
+                        for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
+                            const row = json[i-1];
+                            if (!row || row[1] === undefined || row[1] === null) throw new Error(`第 ${i} 行答案缺失。`);
+                            const answer = parseInt(row[1], 10);
+                            if (isNaN(answer) || answer < 1 || answer > 5) throw new Error(`第 ${i} 行的答案 "${row[1]}" 无效，请输入1到5之间的数字。`);
+                            answers[i] = answer;
+                        }
+                        
+                        const results = performCalculation(answers);
+                        if (results) {
+                            Object.entries(answers).forEach(([qNum, ans]) => {
+                                const radio = document.getElementById(`q${qNum}-${ans}`);
+                                if (radio) radio.checked = true;
+                            });
+                            displayResults(results);
+                        }
+                    } catch (err) {
+                        showError(`文件处理失败: ${err.message}`);
+                    } finally {
+                        fileInput.value = '';
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            // --- Event Listeners ---
+            calculateBtn.addEventListener('click', calculateAndShowResults);
+            closeBtn.addEventListener('click', closeModal);
+            exportPdfBtn.addEventListener('click', exportToPDF);
+            exportExcelBtn.addEventListener('click', exportToExcel);
+            importBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileUpload);
+            resultsModal.addEventListener('click', (e) => {
+                if (e.target === resultsModal) closeModal();
+            });
+
+            // --- Initial Load ---
+            generateQuestions();
+        });
+    </script>
+
+</body>
+</html>

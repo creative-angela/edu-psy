@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>心理绘画解析程序</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #FDFBF8;
+            color: #4A4A4A;
+        }
+        .modal-backdrop {
+            background-color: rgba(0,0,0,0.5);
+            transition: opacity 0.3s ease-in-out;
+        }
+        #annotationCanvas {
+            cursor: crosshair;
+        }
+        .element-item.active {
+            background-color: #EAE2D9;
+        }
+        .btn-primary {
+            background-color: #A98E71;
+            color: white;
+            transition: background-color 0.2s;
+        }
+        .btn-primary:hover {
+            background-color: #8c735a;
+        }
+        .btn-secondary {
+            background-color: #F8F5F1;
+            border: 1px solid #D1C7BB;
+            color: #4A4A4A;
+            transition: background-color 0.2s;
+        }
+        .btn-secondary:hover {
+            background-color: #EAE2D9;
+        }
+        #featureSidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+        .completion-indicator {
+            color: #22c55e;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+        /* 报告页面的美化样式 */
+        #reportContent h2 {
+            font-size: 1.875rem; /* text-3xl */
+            font-weight: bold;
+            text-align: center;
+            color: #312E2B;
+            margin-bottom: 2rem;
+        }
+        #reportContent h3 {
+            font-size: 1.5rem; /* text-2xl */
+            font-weight: bold;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #A98E71;
+        }
+        #reportContent ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+            margin-top: 1rem;
+        }
+        #reportContent li {
+            margin-bottom: 0.75rem;
+        }
+        #reportContent strong {
+            color: #A98E71;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-[#312E2B]">交互式房树人心理绘画分析工具</h1>
+            <p class="text-md text-gray-600 mt-2">基于《心理画——绘画心理分析图典》专业解读</p>
+        </header>
+
+        <div id="uploadView" class="text-center p-8 border-2 border-dashed border-gray-300 rounded-2xl bg-white">
+            <h2 class="text-2xl font-medium text-gray-700">第一步：上传您的画作</h2>
+            <p class="text-gray-500 mt-2">请选择一张包含“房、树、人”等元素的图片文件。</p>
+            <input type="file" id="imageLoader" class="hidden" accept="image/*">
+            <button id="uploadButton" class="btn-primary mt-6 px-8 py-3 rounded-lg font-semibold">选择图片</button>
+        </div>
+
+        <div id="annotationView" class="hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 bg-white rounded-2xl shadow-lg p-4 flex flex-col items-center justify-center">
+                     <p class="text-sm text-gray-500 mb-2">请在图片上拖拽鼠标框选出“房”、“树”、“人”、“附加物”等元素。</p>
+                    <canvas id="annotationCanvas" class="rounded-lg max-w-full"></canvas>
+                </div>
+                <div class="bg-white rounded-2xl shadow-lg p-6">
+                    <h2 class="text-xl font-bold text-[#312E2B] border-b pb-3">已标注元素</h2>
+                    <div class="mt-4">
+                        <button id="addOverallButton" class="w-full btn-secondary py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">添加整体评估</button>
+                    </div>
+                    <div id="elementList" class="mt-4 space-y-2 max-h-[40vh] overflow-y-auto">
+                        <p class="text-gray-500 text-center py-4">尚未标注任何元素。</p>
+                    </div>
+                    <div class="mt-6 border-t pt-6">
+                        <button id="generateReportButton" class="w-full btn-primary py-3 rounded-lg font-semibold disabled:opacity-50" disabled>生成分析报告</button>
+                         <button id="resetButton" class="w-full btn-secondary mt-3 py-2 rounded-lg text-sm">重新开始</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="tagModal" class="fixed inset-0 z-50 items-center justify-center hidden modal-backdrop">
+            <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm text-center">
+                <h3 class="text-xl font-bold mb-6">请为框选的元素选择类型</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <button data-type="house" class="py-3 rounded-lg btn-secondary text-lg">房子</button>
+                    <button data-type="tree" class="py-3 rounded-lg btn-secondary text-lg">树</button>
+                    <button data-type="person" class="py-3 rounded-lg btn-secondary text-lg">人</button>
+                    <button data-type="attachment" class="py-3 rounded-lg btn-secondary text-lg">附加物</button>
+                </div>
+                 <button id="cancelTagButton" class="mt-6 text-gray-500 hover:text-gray-800">取消</button>
+            </div>
+        </div>
+
+        <div id="featureSidebarBackdrop" class="fixed inset-0 z-40 hidden modal-backdrop"></div>
+        <div id="featureSidebar" class="fixed top-0 right-0 h-full bg-white rounded-l-2xl shadow-xl p-8 w-full max-w-lg flex flex-col transform translate-x-full z-50">
+            <h3 id="featureSidebarTitle" class="text-2xl font-bold mb-4 flex-shrink-0">选择特征</h3>
+            <div id="featureChecklist" class="flex-grow overflow-y-auto space-y-2 pr-2">
+                </div>
+            <div class="mt-6 flex-shrink-0 flex justify-end space-x-4">
+                <button id="cancelFeatureButton" class="btn-secondary px-6 py-2 rounded-lg">取消</button>
+                <button id="saveFeatureButton" class="btn-primary px-6 py-2 rounded-lg">保存</button>
+            </div>
+        </div>
+
+        <div id="reportView" class="hidden bg-white rounded-2xl shadow-lg p-8 md:p-12">
+            <div id="reportContent" class="max-w-none"></div>
+            <div class="text-center mt-12 flex justify-center space-x-4">
+                <button id="backToEditorButton" class="btn-secondary px-8 py-3 rounded-lg font-semibold">返回编辑</button>
+                <button id="downloadPdfButton" class="btn-primary px-8 py-3 rounded-lg font-semibold">下载PDF报告 (英文版)</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+// --- Chinese Data Store ---
+const htpData = {
+    overall: { 
+        title: "画面整体分析", 
+        features: [ { term: "房、树、人距离近", interpretation: "元素之间关系紧密。" }, { term: "房、树、人距离远", interpretation: "元素之间关系疏远，可能反映逃避现实、焦虑不安或自卑。" }, { term: "画面大 / 图形过大", interpretation: "自我评价较高，自信，外向，情绪化，有攻击性倾向。过大则可能为防御、自负或自我膨胀。也可能反映过分自信，控制欲强，社交能力强。" }, { term: "画面小 / 图形过小", interpretation: "自我评价较低，不自信，退缩，内向，情绪低落，缺乏安全感。也可能反映环境适应不良，社交能力弱，害羞。" }, { term: "位置偏上", interpretation: "想象力丰富，乐观，有抱负，追求精神生活，容易沉浸在幻想中。" }, { term: "位置居中", interpretation: "有安全感，自我，以现实为中心。若图像过大则可能过分控制自己，焦虑不安。" }, { term: "位置偏下", interpretation: "缺乏安全感，情绪低落，注重现实，追求安全感，想要把握周围的机会。" }, { term: "位置偏左", interpretation: "内向，关注过去，冲动，关注感情世界，喜欢留恋过去的生活。" }, { term: "位置偏右", interpretation: "外向，关注未来，理性，关注理智世界和将来的生活。" }, { term: "图形顶部被切断", interpretation: "追求在思想中回避不愉快的现实，沉溺于幻想，行动力弱，追求的目标不现实。" }, { term: "图形底部被切断", interpretation: "缺乏安全感，常常迫于外界压力压抑情绪，不敢表达。" }, { term: "图形左侧被切断", interpretation: "对过去的人或事比较留恋，对未来不确定，想开始新生活但内心矛盾。" }, { term: "图形右侧被切断", interpretation: "想逃离过去，但内心矛盾不知所措，对未来感到不安和恐惧。" }, { term: "线条粗重 / 又粗又黑", interpretation: "紧张，有攻击性，精力充沛。可能过于自信，行动积极，但行为控制力较弱。" }, { term: "线条轻柔 / 浅淡", interpretation: "心理能量低，犹豫，压抑，缺乏自信。也可能反映自卑，无助感，焦虑不安。" }, { term: "线条断续", interpretation: "焦虑，冲动，不安全。容易兴奋，待人处事缺乏经验。" }, { term: "线条不流畅", interpretation: "在日常生活中心理紧张。" }, { term: "线条柔和", interpretation: "男性：性格平和、内向，依赖性强。女性：性格温柔，富于同情心。" }, { term: "线条平直", interpretation: "对目标执著，情绪稳定，抗挫折和抗压能力强。" }, { term: "反复描画、涂改", interpretation: "焦虑，不确定，过度关注。" }, { term: "有阴影", interpretation: "通常表示焦虑不安，内心有矛盾、冲突。阴影越重，焦虑程度越高。" }, { term: "画面不平衡 / 不对称", interpretation: "缺乏稳定感，内心冲突。可能思想单纯，思维简单，行为冲动。" }, { term: "画面过分对称", interpretation: "刻板，压抑，有强迫倾向。做事过于理智，情感不够丰富。" }, { term: "画面透明性 (看到房子内部或人体器官)", interpretation: "情绪极度不稳定，思维混乱，现实感差，可能提示有精神障碍或智力发育迟缓。" }, { term: "强调地面", interpretation: "过分关注现实中的安全性，情绪焦虑、不安。" } ]
+    },
+    house: { 
+        title: "房子 (House) 的解读", 
+        features: [ { term: "房子高大于宽", interpretation: "智力发展可能存在障碍，思维迟钝，不能很快掌握技能和知识。" }, { term: "房子无底线(地面线)", interpretation: "漂泊不稳定，不自信，缺乏立场，容易顺从他人意见。" }, { term: "线条不连续", interpretation: "脾气急躁，冲动，内心脆弱，神经敏感，没有耐心。" }, { term: "墙线不规则", interpretation: "左墙不规则：内心脆弱、抑郁。右墙不规则：对新环境适应不良，易有冲突。" }, { term: "线条为波浪线", interpretation: "有活力，有朝气，善于适应社会。" }, { term: "曲线形状", interpretation: "性格软弱，渴望他人交往，人际关系良好，为人圆滑。" }, { term: "屋顶或墙面有阴影", interpretation: "敏感，情绪波动大，心情抑郁，缺乏安全感，性格软弱。" }, { term: "大墙大屋顶", interpretation: "自信甚至自负，有野心，情感丰富，对自己的目标执著。" }, { term: "大墙小屋顶", interpretation: "心理年龄发展缓慢，比较幼稚。" }, { term: "房屋简化", interpretation: "务实，思想单纯，但可能生活空虚，缺乏幻想，性格保守。" }, { term: "房屋在山上或岛上", interpretation: "有被抛弃感，孤独，喜欢独处，自我表现欲强，焦虑心烦。" }, { term: "房屋有围墙或水沟", interpretation: "自我防卫，多疑，不愿受外来干扰，对人际交往不适应。" }, { term: "房屋被树木遮住", interpretation: "强烈的依赖，可能被父母过度支配，亲子关系紧张。" }, { term: "画成宫殿/寺庙", interpretation: "有较高的精神追求，或对荣华富贵的向往。可能常常自我反思。" }, { term: "门很大", interpretation: "渴望交往，性格开放，积极与外界接触，喜欢依赖他人。" }, { term: "门很小", interpretation: "不愿与人交往，退缩，害羞，缺乏安全感，不爱交际。" }, { term: "没有门", interpretation: "极度孤立，对外界有较强的防御心理，拒绝他人接近。" }, { term: "没有门把手", interpretation: "不欢迎别人走进自己的内心，强调个人隐私。" }, { term: "有窥视孔/门上有锁", interpretation: "不轻易信任他人，谨慎小心，多疑。" }, { term: "门开着", interpretation: "渴望交流，接纳他人。(在“动态房树人”中)" }, { term: "窗户很多、很大", interpretation: "乐于交往，内心开放，渴望被理解和与外界接触。" }, { term: "没有窗户", interpretation: "内心封闭，退缩，可能有被害妄想倾向。" }, { term: "像栅栏一样的窗户", interpretation: "缺乏安全感，感觉家庭像牢笼，警戒心强，敏感多疑。" }, { term: "有窗帘的窗户", interpretation: "追求美感，有保留地让人接近。" }, { term: "百叶窗", interpretation: "持保留态度。关上的百叶窗表示退缩或情绪忧郁。" }, { term: "屋顶与墙壁相连", interpretation: "可能存在严重的性格障碍，思维方式独特，不排除精神分裂倾向。" }, { term: "黑黑的屋顶", interpretation: "内心有严重的沉重感、压抑感。" }, { term: "网状或密布“十”字的屋顶", interpretation: "内疚感，想要控制幻想，内心有激烈冲突。" }, { term: "过分细致的瓦片", interpretation: "过分追求细节，完美主义，固执、刻板，有强迫倾向。" }, { term: "云或球形屋顶", interpretation: "容易生活在幻想中，天真，幼稚，心情不稳定。" }, { term: "强调烟囱", interpretation: "关注家庭温暖、权力或性方面的能力。" }, { term: "烟囱冒着浓烟", interpretation: "家庭内部存在矛盾冲突，内心紧张，对自己家庭状态不满意。" }, { term: "没有烟囱", interpretation: "可能缺乏心理上的温暖，或处于消极状态。" }, { term: "坚固的墙", interpretation: "坚强的自我。" }, { term: "一推即倒的墙/线条脆弱", interpretation: "脆弱的自我，自我控制能力弱，人格可能近于崩溃。" }, { term: "透明的墙", interpretation: "自我与外界界限不清，现实感差，可能提示智力发育迟缓或精神分裂。" } ]
+    },
+    tree: { 
+        title: "树 (Tree) 的解读", 
+        features: [ { term: "很小的树", interpretation: "自卑，无力感，性格内向。" }, { term: "树墩", interpretation: "严重的心理创伤，强烈的压抑感，焦躁不安，但也可能代表调整后重新开始。" }, { term: "枯树", interpretation: "缺乏自信，自卑，情感抑郁，不能很好地与人交往，可能有神经症或精神分裂倾向。" }, { term: "枯枝中露出新芽", interpretation: "经历创伤但决心再次努力，奋斗，有自我恢复能力。" }, { term: "短树干、大树冠", interpretation: "非常自信，有野心，动机强，骄傲而自负。" }, { term: "树干细小而树冠过大", interpretation: "对自己要求过高，在日常生活中对自己要求过高。" }, { term: "树冠巨大", interpretation: "有强烈的成就动机，有雄心壮志，充满自信，有时比较自负。" }, { term: "树冠微小", interpretation: "学龄儿童可能是发育障碍；成人画中则是幼稚性的表现。" }, { term: "压扁的树冠", interpretation: "感觉生活在压力之下，情绪压抑，不自由，强迫自己服从他人。" }, { term: "树冠呈云状或球形", interpretation: "情绪波动大，喜欢幻想，待人随和，有艺术天赋。" }, { term: "混乱线条构成的树冠", interpretation: "脾气暴躁，情绪激动，生活可能比较混乱，缺乏稳定性。" }, { term: "树枝向上生长", interpretation: "积极向上，对生活充满希望和活力，易动感情。" }, { term: "杨柳状下垂的树枝", interpretation: "关注过去，怀旧，明显的压抑状态，意志薄弱，优柔寡断。" }, { term: "树枝折断", interpretation: "在成长中遭受过创伤，感到沮丧，付出的努力遭到失败。" }, { term: "没有树枝(光秃秃)", interpretation: "缺乏与外界的联系，感到孤立。" }, { term: "树枝过分对称", interpretation: "性格呆板，可能有强迫倾向，或对外界有矛盾感。" }, { term: "粗大的树干", interpretation: "充满活力和生命力，活动积极，既注重现实又有某些空想。" }, { term: "纤细的树干", interpretation: "成长中缺乏支持，能量不足，缺乏自信，幼稚。" }, { term: "有伤疤的树干", interpretation: "在成长中有过创伤，能量在伤疤处回旋，需花力气解决问题。" }, { term: "弯曲的树干", interpretation: "情绪快乐，任性，以自我为中心，活动性比较强。" }, { term: "被风吹得歪斜的树", interpretation: "感受到来自外界的强大压力。" }, { term: "仔细描画树干表面", interpretation: "对外界环境敏感，心理脆弱，神经质，易受感动。" }, { term: "树根暴露", interpretation: "关注过去，心态不成熟，缺乏自信，内心中有很多纠葛。" }, { term: "枯死的树根", interpretation: "对早期生命和成长感到沮丧，情感干涸。" }, { term: "爪状的树根", interpretation: "显示出对外界的攻击态度。" }, { term: "不画树根(树悬浮)", interpretation: "缺乏安全感，与现实脱节，没有主见、没有立场。" }, { term: "有果实", interpretation: "代表成就、欲望、目标。果实的数目、大小、成熟度都有意义。" }, { term: "掉落的果实", interpretation: "成长中遇到伤害事件，感到被拒绝或有负疚感，甚至罪恶感。" }, { term: "树叶浓密", interpretation: "生命力旺盛，有活力，能量大。" }, { term: "没有树叶(枯树)", interpretation: "生命力严重不足，衰竭感，空虚感，生命的失落感。" }, { term: "树叶掉落", interpretation: "有依赖性，对生活态度松散，可能情绪低落、易伤感。" }, { term: "树上有鸟巢/树洞有动物", interpretation: "具有依赖性，渴望被照顾和关爱，渴望温暖的环境。" } ]
+    },
+    person: { 
+        title: "人 (Person) 的解读", 
+        features: [ { term: "人物很大", interpretation: "自我评价高，极其自信，外向，情绪化，有攻击性倾向。" }, { term: "人物很小", interpretation: "自我评价低，不自信，退缩，缺乏安全感，内向，情绪低落。" }, { term: "人物缺损", interpretation: "成人画中可能表示智力低下，情绪困扰，神经质。" }, { term: "画背面", interpretation: "回避，不愿与人交往，有矛盾心理，不敢面对真实的自我。" }, { term: "只画头部", interpretation: "对自己的智力极其自信，强烈的控制欲，人际关系不良，或身体方面有困扰。" }, { term: "头很大", interpretation: "聪明，有野心，但也可能头痛或自负。成人画中可能智商偏低或对身体不满意。" }, { term: "头很小", interpretation: "成人画中可能神经质，强迫倾向，感到无助，自我评价差。" }, { term: "头发被强调/仔细描画", interpretation: "对性有不安或冲动，或烦恼很多，做事仔细。" }, { term: "头发潦草/轮廓", interpretation: "性格混乱，或做事追求效率，不会自寻烦恼。" }, { term: "眼睛大", interpretation: "外向，好奇，敏感，容易相信别人，也可能多疑、妄想。" }, { term: "眼睛小/闭着", interpretation: "内向，回避现实，自我陶醉，关注自我，理性专注。" }, { term: "不画眼睛/眼珠", interpretation: "明显的回避倾向，关注自我，对环境不屑一顾。" }, { term: "嘴巴张开/强调", interpretation: "语言攻击性，依赖，或满足口腹之欲，有强烈的表达欲望。" }, { term: "嘴巴紧闭/一条线", interpretation: "内心紧张，压抑，有敌意。" }, { term: "不画嘴", interpretation: "沟通困难，不愿意与人沟通，可能有抑郁或退缩。" }, { term: "耳朵大", interpretation: "对批评敏感。" }, { term: "不画耳朵", interpretation: "很少倾听别人的意见。" }, { term: "鼻子被强调", interpretation: "有主见，有攻击性，可能有性方面的困扰。" }, { term: "不画鼻子", interpretation: "没有主见，缺乏精力。" }, { term: "躯体被忽略/火柴人", interpretation: "否认身体冲动，不接纳自己身体，或有智力问题。" }, { term: "肩膀宽/方正", interpretation: "力量感，攻击性，能承受压力。" }, { term: "肩膀窄/小", interpretation: "自卑，无法承受压力。" }, { term: "胳膊张开", interpretation: "渴望与外界接触。" }, { term: "胳膊贴近身体/交叉", interpretation: "防御，敌意，退缩。" }, { term: "不画手", interpretation: "缺乏自信，无力感，与他人沟通困难，缺乏执行力。" }, { term: "手画成拳头", interpretation: "具有攻击性，压抑愤怒，有叛逆性。" }, { term: "腿长", interpretation: "强烈地希望自己做主，追求自主。" }, { term: "腿短", interpretation: "感到受限制。" }, { term: "不画脚", interpretation: "缺乏根基，不稳定，不安全，有退缩倾向。" }, { term: "强调扣子", interpretation: "依赖性，幼稚性，内心不够成熟，没有主见。" }, { term: "强调口袋", interpretation: "内心有冲突，或与母亲关系问题。青少年画大口袋表示独立与依赖的冲突。" }, { term: "画裸体", interpretation: "成人画中可能表示对身体的接纳，或性冲动，或反叛。" } ]
+    },
+    attachment: {
+        title: "附加物 (Attachment) 的解读",
+        features: [
+            { term: "天象：太阳", interpretation: "象征权威、温暖和关注。通常代表与父亲或重要男性的关系。在成人画中代表需要温暖。" },
+            { term: "天象：落日", interpretation: "显示情绪抑郁，落落寡合。" },
+            { term: "天象：月亮", interpretation: "象征被动、女性化。通常代表与母亲或重要女性的关系。也可能代表忧郁。" },
+            { term: "天象：星星", interpretation: "象征身体或情感上的剥夺。" },
+            { term: "天象：云朵", interpretation: "代表焦虑不安，尤其是缠绕在头脑中的事件。" },
+            { term: "天象：乌云", interpretation: "心情抑郁，感到很压抑。" },
+            { term: "天象：雨", interpretation: "情绪低落。" },
+            { term: "植物：花朵", interpretation: "对美的追求，对温柔的渴望。渴望爱和美。" },
+            { term: "植物：小草", interpretation: "浓密的小草代表焦虑感。也可能代表生命力、愤怒情绪或希望掩饰某些事物。" },
+            { term: "动物：蛇", interpretation: "象征最原始的恐惧，或未知的无意识世界，也可能与性有关。" },
+            { term: "动物：鸟", interpretation: "是自由的象征，也是活力与生命力的象征。不同种类的鸟有不同含义（如鸽子代表和平，乌鸦代表黑暗）。" },
+            { term: "动物：狗", interpretation: "是忠诚的象征。" },
+            { term: "动物：猫", interpretation: "象征好运、聪明、鬼灵精怪。" },
+            { term: "动物：蝴蝶", interpretation: "比喻或形容心理的转化。" }
+        ]
+    }
+};
+
+// --- English Data Store (FIXED: All terms are now in English) ---
+const htpDataEN = {
+    overall: { 
+        title: "Overall Picture Analysis", 
+        features: [ { term: "House, Tree, and Person are close", interpretation: "Indicates a close relationship between the elements." }, { term: "House, Tree, and Person are far apart", interpretation: "Suggests distance in relationships, possibly reflecting avoidance of reality, anxiety, or low self-esteem." }, { term: "Large drawing / oversized figures", interpretation: "High self-esteem, confidence, extroversion, emotional, and potentially aggressive tendencies. If excessively large, it may indicate defensiveness, arrogance, or self-inflation. It can also reflect overconfidence and strong desire for control." }, { term: "Small drawing / tiny figures", interpretation: "Low self-esteem, lack of confidence, withdrawal, introversion, depression, and a lack of security. It may also reflect poor adaptation to the environment, weak social skills, and shyness." }, { term: "Positioned at the top", interpretation: "Rich imagination, optimism, ambition, pursuit of spiritual life, and a tendency to be lost in fantasy." }, { term: "Positioned in the center", interpretation: "Feeling of security, egocentrism, reality-oriented. If the image is too large, it may suggest excessive self-control, anxiety, and unease." }, { term: "Positioned at the bottom", interpretation: "Lack of security, depression, focus on reality, a desire for security, and a wish to seize opportunities." }, { term: "Positioned on the left", interpretation: "Introversion, focus on the past, impulsiveness, and preoccupation with one's emotional world." }, { term: "Positioned on the right", interpretation: "Extroversion, focus on the future, rationality, and concern with the intellectual world." }, { term: "Top of the figure is cut off", interpretation: "A desire to avoid unpleasant realities through thought, indulgence in fantasy, weak drive, and unrealistic goals." }, { term: "Bottom of the figure is cut off", interpretation: "Lack of security, often suppressing emotions due to external pressure, and afraid to express oneself." }, { term: "Left side of the figure is cut off", interpretation: "Attachment to past people or events, uncertainty about the future, and internal conflict about starting a new life." }, { term: "Right side of the figure is cut off", interpretation: "A desire to escape the past but feeling conflicted and helpless, with anxiety and fear about the future." }, { term: "Heavy / dark lines", interpretation: "Tension, aggression, high energy. May indicate overconfidence and proactive behavior but with weak impulse control." }, { term: "Light / faint lines", interpretation: "Low psychological energy, hesitation, repression, lack of confidence. May also reflect feelings of inferiority and helplessness." }, { term: "Broken / sketchy lines", interpretation: "Anxiety, impulsiveness, insecurity. Easily excited and may lack experience in social interactions." }, { term: "Uneven / shaky lines", interpretation: "Psychological tension in daily life." }, { term: "Soft / gentle lines", interpretation: "For males: peaceful, introverted, dependent. For females: gentle and compassionate." }, { term: "Straight / firm lines", interpretation: "Determined, emotionally stable, and resilient to frustration and pressure." }, { term: "Repeated strokes / erasures", interpretation: "Anxiety, uncertainty, and excessive concern." }, { term: "Shading", interpretation: "Usually indicates anxiety and internal conflict. The darker the shading, the higher the anxiety." }, { term: "Unbalanced / asymmetrical picture", interpretation: "Lack of stability, internal conflict. May suggest simplicity in thought and impulsive behavior." }, { term: "Excessively symmetrical picture", interpretation: "Rigidity, repression, and obsessive-compulsive tendencies. Overly rational and emotionally constricted." }, { term: "Transparency (seeing inside house or body)", interpretation: "Extreme emotional instability, confused thinking, poor reality testing. May suggest a mental disorder or developmental delay." }, { term: "Emphasis on the ground line", interpretation: "Excessive concern for security in reality, anxiety, and unease." } ]
+    },
+    house: { 
+        title: "Interpretation of the House", 
+        features: [ { term: "Taller than wide", interpretation: "May indicate intellectual development issues, slow thinking, and difficulty in mastering skills." }, { term: "No baseline (ground line)", interpretation: "A sense of instability, lack of confidence and standpoint, easily swayed by others." }, { term: "Discontinuous lines", interpretation: "Impulsive, short-tempered, emotionally fragile, and impatient." }, { term: "Irregular walls", interpretation: "Irregular left wall: emotional vulnerability, depression. Irregular right wall: difficulty adapting to new environments, prone to conflict." }, { term: "Wavy lines", interpretation: "Vibrant, energetic, and socially adaptable." }, { term: "Curved shape", interpretation: "A soft personality, desires social interaction, has good relationships, and can be tactful." }, { term: "Shading on roof or walls", interpretation: "Sensitive, moody, depressive, and insecure." }, { term: "Large walls, large roof", interpretation: "Confident to the point of being arrogant, ambitious, and emotionally rich." }, { term: "Large walls, small roof", interpretation: "Slow psychological development, relatively immature." }, { term: "Simplified house", interpretation: "Pragmatic and simple-minded, but life may be empty, lacking imagination, and conservative." }, { term: "House on a hill or island", interpretation: "Feelings of abandonment, loneliness, a preference for solitude, and a strong desire for self-expression." }, { term: "House with a fence or moat", interpretation: "Defensive, suspicious, and unwilling to be disturbed; difficulty with social interaction." }, { term: "House hidden by trees", interpretation: "Strong dependency, possibly over-dominated by parents, and tense parent-child relationships." }, { term: "Drawn as a palace/temple", interpretation: "High spiritual pursuits or a longing for wealth and nobility; may indicate frequent self-reflection." }, { term: "Large door", interpretation: "Eager for social interaction, open personality, and a tendency to rely on others." }, { term: "Small door", interpretation: "Unwilling to socialize, withdrawn, shy, and insecure." }, { term: "No door", interpretation: "Extremely isolated, with strong defenses against the outside world." }, { term: "No doorknob", interpretation: "Unwelcoming to others entering their inner world, emphasizes privacy." }, { term: "Peephole/lock on door", interpretation: "Distrustful, cautious, and suspicious." }, { term: "Open door", interpretation: "Desire for communication and acceptance of others (in dynamic HTP)." }, { term: "Many/large windows", interpretation: "Sociable, open-minded, and desires to be understood." }, { term: "No windows", interpretation: "Internally closed-off, withdrawn, and may have paranoid tendencies." }, { term: "Barred windows", interpretation: "Lack of security, feels the home is like a prison, high level of vigilance and suspicion." }, { term: "Windows with curtains", interpretation: "Aesthetic sense, allows others to approach with reservations." }, { term: "Blinds on windows", interpretation: "A reserved attitude. Closed blinds indicate withdrawal or depression." }, { term: "Roof connected directly to walls", interpretation: "May have a severe personality disorder, unique way of thinking, possibility of schizophrenia." }, { term: "Blackened roof", interpretation: "Severe feelings of heaviness and depression." }, { term: "Net-like or cross-hatched roof", interpretation: "Feelings of guilt, a desire to control fantasies, and intense internal conflict." }, { term: "Overly detailed tiles", interpretation: "Perfectionistic, stubborn, rigid, and has obsessive-compulsive tendencies." }, { term: "Cloud or sphere-shaped roof", interpretation: "Prone to fantasy, naive, immature, and emotionally unstable." }, { term: "Emphasis on chimney", interpretation: "Concern for family warmth, power, or sexual capabilities." }, { term: "Chimney with heavy smoke", interpretation: "Internal family conflicts, tension, and dissatisfaction with the home situation." }, { term: "No chimney", interpretation: "May lack psychological warmth or be in a passive state." }, { term: "Sturdy walls", interpretation: "A strong ego." }, { term: "Flimsy walls / weak lines", interpretation: "A fragile ego, weak self-control, personality may be close to collapse." }, { term: "Transparent walls", interpretation: "Unclear boundaries between self and the external world, poor reality testing; may suggest developmental delay or schizophrenia." } ]
+    },
+    tree: { 
+        title: "Interpretation of the Tree", 
+        features: [ { term: "Very small tree", interpretation: "Feelings of inferiority, helplessness, and introversion." }, { term: "Tree stump", interpretation: "Severe psychological trauma, strong repression, restlessness, but may also represent a new beginning after adjustment." }, { term: "Dead tree", interpretation: "Lack of self-confidence, low self-esteem, emotional depression, and difficulty in socializing; may have neurotic or schizophrenic tendencies." }, { term: "New shoots on dead branches", interpretation: "Has experienced trauma but is determined to try again; possesses self-healing capabilities." }, { term: "Short trunk, large crown", interpretation: "Very confident, ambitious, highly motivated, proud, and self-assured." }, { term: "Slender trunk, overly large crown", interpretation: "Has excessively high expectations for oneself." }, { term: "Gigantic crown", interpretation: "Strong achievement motivation, great ambition, and full of confidence." }, { term: "Tiny crown", interpretation: "In school-aged children, may indicate a developmental disorder; in adults, it's a sign of immaturity." }, { term: "Flattened crown", interpretation: "Feels oppressed by life's pressures, emotionally repressed, and not free." }, { term: "Cloud or sphere-shaped crown", interpretation: "Emotionally volatile, loves to fantasize, and is easygoing." }, { term: "Crown made of tangled lines", interpretation: "Irritable, emotionally agitated, and may lead a chaotic and unstable life." }, { term: "Upward-growing branches", interpretation: "Positive and upwardly mobile, full of hope and vitality." }, { term: "Willow-like drooping branches", interpretation: "Focuses on the past, nostalgic, in a state of marked depression, and weak-willed." }, { term: "Broken branches", interpretation: "Has suffered trauma during growth, feels frustrated, and efforts have failed." }, { term: "No branches (bare)", interpretation: "Lack of connection with the outside world, feels isolated." }, { term: "Excessively symmetrical branches", interpretation: "Rigid personality, may have obsessive-compulsive tendencies or ambivalence towards the world." }, { term: "Thick trunk", interpretation: "Full of vitality and life force, active and pragmatic." }, { term: "Slender trunk", interpretation: "Lacked support during growth, insufficient energy, and lacks confidence." }, { term: "Scarred trunk", interpretation: "Experienced trauma during growth; energy is focused on the scar, requiring effort to resolve." }, { term: "Curved trunk", interpretation: "Happy, willful, and self-centered." }, { term: "Tree leaning in the wind", interpretation: "Feeling strong pressure from the external environment." }, { term: "Detailed bark", interpretation: "Sensitive to the external environment, psychologically fragile, and nervous." }, { term: "Exposed roots", interpretation: "Focuses on the past, immature mindset, and lacks self-confidence." }, { term: "Dead roots", interpretation: "Feels frustrated about early life and growth, emotionally arid." }, { term: "Claw-like roots", interpretation: "Shows an aggressive attitude towards the outside world." }, { term: "No roots (floating tree)", interpretation: "Lack of security, disconnected from reality, and has no standpoint." }, { term: "With fruit", interpretation: "Represents achievements, desires, and goals. The number, size, and maturity of the fruit are all meaningful." }, { term: "Falling fruit", interpretation: "Encountered harmful events during growth, feels rejected or has a sense of guilt." }, { term: "Dense foliage", interpretation: "Vigorous, full of vitality and energy." }, { term: "No leaves (dead tree)", interpretation: "Severe lack of vitality, sense of exhaustion and emptiness." }, { term: "Falling leaves", interpretation: "Dependent, has a lax attitude towards life, and may be emotionally down." }, { term: "Bird's nest/animal in a tree hollow", interpretation: "Dependent, yearns for care, love, and a warm environment." } ]
+    },
+    person: { 
+        title: "Interpretation of the Person", 
+        features: [ { term: "Large figure", interpretation: "High self-esteem, extreme confidence, extroverted, emotional, and has aggressive tendencies." }, { term: "Small figure", interpretation: "Low self-esteem, lack of confidence, withdrawn, insecure, introverted, and depressed." }, { term: "Incomplete figure", interpretation: "In adults, may indicate low intelligence, emotional distress, or neuroticism." }, { term: "Drawn from the back", interpretation: "Avoidant, unwilling to socialize, has conflicting feelings, and is afraid to face their true self." }, { term: "Head only", interpretation: "Extremely confident in one's intelligence, strong desire for control, poor interpersonal relationships, or physical concerns." }, { term: "Large head", interpretation: "Intelligent, ambitious, but may also suffer from headaches or be conceited. In adults, it can indicate low IQ or dissatisfaction with their body." }, { term: "Small head", interpretation: "In adults, may indicate neurotic or obsessive-compulsive tendencies, feelings of helplessness, and poor self-esteem." }, { term: "Emphasized/detailed hair", interpretation: "Anxiety or impulses related to sexuality, or has many worries and is meticulous." }, { term: "Messy/outlined hair", interpretation: "Chaotic personality, or values efficiency and avoids unnecessary troubles." }, { term: "Large eyes", interpretation: "Extroverted, curious, sensitive, easily trusts others, but may also be suspicious or paranoid." }, { term: "Small/closed eyes", interpretation: "Introverted, avoids reality, narcissistic, self-focused, and rational." }, { term: "No eyes/pupils", interpretation: "A clear tendency to avoid reality, self-absorbed, and dismissive of the environment." }, { term: "Open/emphasized mouth", interpretation: "Verbal aggression, dependency, a desire for oral gratification, or a strong need for self-expression." }, { term: "Closed mouth/a single line", interpretation: "Internal tension, repression, and hostility." }, { term: "No mouth", interpretation: "Communication difficulties, unwilling to communicate, and may be depressed or withdrawn." }, { term: "Large ears", interpretation: "Sensitive to criticism." }, { term: "No ears", interpretation: "Rarely listens to others' opinions." }, { term: "Emphasized nose", interpretation: "Assertive, aggressive, and may have concerns related to sexuality." }, { term: "No nose", interpretation: "Lacks assertiveness and energy." }, { term: "Neglected body/stick figure", interpretation: "Denial of bodily impulses, does not accept one's own body, or may have intellectual issues." }, { term: "Broad/square shoulders", interpretation: "A sense of power, aggression, and ability to handle pressure." }, { term: "Narrow/small shoulders", interpretation: "Feelings of inferiority, unable to handle pressure." }, { term: "Arms open", interpretation: "A desire to connect with the outside world." }, { term: "Arms close to body/crossed", interpretation: "Defensive, hostile, and withdrawn." }, { term: "No hands", interpretation: "Lack of confidence, feelings of powerlessness, and difficulty communicating with others." }, { term: "Fisted hands", interpretation: "Aggressive, represses anger, and has rebellious tendencies." }, { term: "Long legs", interpretation: "A strong desire for autonomy and independence." }, { term: "Short legs", interpretation: "Feels restricted and limited." }, { term: "No feet", interpretation: "Lacks a foundation, feels unstable and insecure, with a tendency to withdraw." }, { term: "Emphasis on buttons", interpretation: "Dependency, immaturity, and lack of assertiveness." }, { term: "Emphasis on pockets", interpretation: "Internal conflict or issues with the mother. Large pockets in adolescents indicate a conflict between independence and dependence." }, { term: "Nude figure", interpretation: "In adults, may represent body acceptance, sexual impulses, or rebellion." } ]
+    },
+    attachment: {
+        title: "Interpretation of Attachments",
+        features: [
+            { term: "Celestial: Sun", interpretation: "Symbolizes authority, warmth, and attention. Usually represents the relationship with the father or a significant male figure. In adult drawings, it represents a need for warmth." },
+            { term: "Celestial: Sunset", interpretation: "Indicates a depressed and solitary mood." },
+            { term: "Celestial: Moon", interpretation: "Symbolizes passivity and femininity. Usually represents the relationship with the mother or a significant female figure. May also represent melancholy." },
+            { term: "Celestial: Stars", interpretation: "Symbolizes physical or emotional deprivation." },
+            { term: "Celestial: Clouds", interpretation: "Represents anxiety, especially about events weighing on the mind." },
+            { term: "Celestial: Dark Clouds", interpretation: "Depressed mood, feeling very oppressed." },
+            { term: "Celestial: Rain", interpretation: "Low spirits, sadness." },
+            { term: "Plants: Flowers", interpretation: "A pursuit of beauty and a desire for tenderness and love." },
+            { term: "Plants: Grass", interpretation: "Dense grass represents anxiety. It can also symbolize vitality, anger, or a desire to hide something." },
+            { term: "Animals: Snake", interpretation: "Symbolizes primal fear, the unknown unconscious world, or may be related to sexuality." },
+            { term: "Animals: Bird", interpretation: "A symbol of freedom, as well as vitality and life force. Different birds have different meanings (e.g., a dove for peace, a crow for darkness)." },
+            { term: "Animals: Dog", interpretation: "A symbol of loyalty." },
+            { term: "Animals: Cat", interpretation: "Symbolizes good luck, cleverness, and wit." },
+            { term: "Animals: Butterfly", interpretation: "A metaphor for psychological transformation." }
+        ]
+    }
+};
+
+// --- Main Application Logic ---
+document.addEventListener('DOMContentLoaded', () => {
+    const uploadView = document.getElementById('uploadView');
+    const annotationView = document.getElementById('annotationView');
+    const reportView = document.getElementById('reportView');
+    const imageLoader = document.getElementById('imageLoader');
+    const uploadButton = document.getElementById('uploadButton');
+    const resetButton = document.getElementById('resetButton');
+    const addOverallButton = document.getElementById('addOverallButton');
+    const canvas = document.getElementById('annotationCanvas');
+    const ctx = canvas.getContext('2d');
+    const elementList = document.getElementById('elementList');
+    const generateReportButton = document.getElementById('generateReportButton');
+    const backToEditorButton = document.getElementById('backToEditorButton');
+    const downloadPdfButton = document.getElementById('downloadPdfButton');
+    const reportContent = document.getElementById('reportContent');
+    const tagModal = document.getElementById('tagModal');
+    const featureSidebar = document.getElementById('featureSidebar');
+    const featureSidebarBackdrop = document.getElementById('featureSidebarBackdrop');
+
+    let uploadedImage = null;
+    let elements = [];
+    let isDrawing = false;
+    let startPos = { x: 0, y: 0 };
+    let currentRect = { x: 0, y: 0, w: 0, h: 0 };
+    let currentEditingId = null;
+
+    function resetApp() {
+        uploadView.style.display = 'block';
+        annotationView.style.display = 'none';
+        reportView.style.display = 'none';
+        uploadedImage = null;
+        elements = [];
+        isDrawing = false;
+        currentRect = { x: 0, y: 0, w: 0, h: 0 };
+        currentEditingId = null;
+        imageLoader.value = '';
+        updateElementList();
+    }
+
+    uploadButton.addEventListener('click', () => imageLoader.click());
+    
+    imageLoader.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                uploadedImage = new Image();
+                uploadedImage.onload = () => {
+                    uploadView.style.display = 'none';
+                    annotationView.style.display = 'block';
+                    setupCanvas();
+                };
+                uploadedImage.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    addOverallButton.addEventListener('click', () => {
+        if (!elements.some(el => el.type === 'overall')) {
+            elements.push({ id: Date.now(), type: 'overall', selectedFeatures: [] });
+            updateElementList();
+        }
+    });
+
+    function setupCanvas() {
+        const maxWidth = canvas.parentElement.clientWidth * 0.95;
+        const maxHeight = window.innerHeight * 0.7;
+        const ratio = Math.min(maxWidth / uploadedImage.width, maxHeight / uploadedImage.height);
+        canvas.width = uploadedImage.width * ratio;
+        canvas.height = uploadedImage.height * ratio;
+        redrawCanvas();
+    }
+
+    function redrawCanvas() {
+        if (!uploadedImage) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(uploadedImage, 0, 0, canvas.width, canvas.height);
+        
+        const counters = { house: 0, tree: 0, person: 0, attachment: 0 };
+
+        elements.forEach(el => {
+            if (el.x === undefined) return;
+            counters[el.type]++;
+            const label = `${getTypeText(el.type)} ${counters[el.type]}`;
+
+            ctx.strokeStyle = '#A98E71';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(el.x, el.y, el.w, el.h);
+            ctx.fillStyle = 'rgba(169, 142, 113, 0.8)';
+            ctx.fillRect(el.x, el.y, ctx.measureText(label).width + 10, 24);
+            ctx.fillStyle = 'white';
+            ctx.font = '14px Noto Sans SC';
+            ctx.fillText(label, el.x + 5, el.y + 17);
+        });
+
+        if (isDrawing) {
+            ctx.strokeStyle = 'rgba(169, 142, 113, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.strokeRect(currentRect.x, currentRect.y, currentRect.w, currentRect.h);
+            ctx.setLineDash([]);
+        }
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        isDrawing = true;
+        const rect = canvas.getBoundingClientRect();
+        startPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (!isDrawing) return;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        currentRect = {
+            x: Math.min(startPos.x, mouseX),
+            y: Math.min(startPos.y, mouseY),
+            w: Math.abs(mouseX - startPos.x),
+            h: Math.abs(mouseY - startPos.y)
+        };
+        redrawCanvas();
+    });
+
+    canvas.addEventListener('mouseup', () => {
+        isDrawing = false;
+        redrawCanvas();
+        if (currentRect.w > 10 && currentRect.h > 10) {
+            showTagModal();
+        }
+    });
+    
+    function showTagModal() {
+        tagModal.style.display = 'flex';
+    }
+    
+    tagModal.addEventListener('click', (e) => {
+        if (e.target.dataset.type) {
+            elements.push({ id: Date.now(), type: e.target.dataset.type, ...currentRect, selectedFeatures: [] });
+            updateElementList();
+            redrawCanvas();
+            tagModal.style.display = 'none';
+        }
+        if(e.target.id === 'cancelTagButton') {
+            tagModal.style.display = 'none';
+            currentRect = { x: 0, y: 0, w: 0, h: 0 };
+            redrawCanvas();
+        }
+    });
+    
+    function getTypeText(type) {
+        return {house: '房子', tree: '树', person: '人', attachment: '附加物', overall: '整体评估'}[type] || '未分类';
+    }
+
+    function updateElementList() {
+        elementList.innerHTML = '';
+        if (elements.length === 0) {
+            elementList.innerHTML = '<p class="text-gray-500 text-center py-4">尚未标注任何元素。</p>';
+            generateReportButton.disabled = true;
+            return;
+        }
+        
+        generateReportButton.disabled = false;
+        const counters = { house: 0, tree: 0, person: 0, attachment: 0 };
+
+        elements.forEach(el => {
+            let label;
+            if (el.type === 'overall') {
+                label = getTypeText(el.type);
+            } else {
+                counters[el.type]++;
+                label = `${getTypeText(el.type)} ${counters[el.type]}`;
+            }
+
+            const isCompleted = el.selectedFeatures.length > 0;
+            const elDiv = document.createElement('div');
+            elDiv.className = 'element-item border rounded-lg p-3 flex justify-between items-center cursor-pointer hover:bg-gray-100';
+            elDiv.dataset.id = el.id;
+            elDiv.innerHTML = `
+                <div class="flex items-center">
+                    <span>${label}</span>
+                    ${isCompleted ? '<span class="completion-indicator">✓</span>' : ''}
+                </div>
+                <div class="space-x-2">
+                    <button class="edit-btn text-blue-600 hover:text-blue-800 text-sm">编辑特征</button>
+                    <button class="delete-btn text-red-600 hover:text-red-800 text-sm">删除</button>
+                </div>
+            `;
+            elementList.appendChild(elDiv);
+        });
+    }
+
+    elementList.addEventListener('click', (e) => {
+        const target = e.target;
+        const elementDiv = target.closest('.element-item');
+        if (!elementDiv) return;
+        const id = parseInt(elementDiv.dataset.id);
+
+        if (target.classList.contains('delete-btn')) {
+            elements = elements.filter(el => el.id !== id);
+            updateElementList();
+            redrawCanvas();
+        } else if (target.classList.contains('edit-btn')) {
+            currentEditingId = id;
+            showFeatureSidebar(id);
+        }
+    });
+
+    function showFeatureSidebar(id) {
+        const element = elements.find(el => el.id === id);
+        if (!element || !htpData[element.type]) return;
+        
+        const { features } = htpData[element.type];
+        const checklist = document.getElementById('featureChecklist');
+        document.getElementById('featureSidebarTitle').textContent = `为 ${getTypeText(element.type)} 选择特征`;
+        checklist.innerHTML = '';
+        
+        features.forEach(feature => {
+            const isChecked = element.selectedFeatures.includes(feature.term);
+            checklist.innerHTML += `
+                <label class="flex items-start p-2 rounded-md hover:bg-gray-100 cursor-pointer">
+                    <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-[#A98E71] focus:ring-[#A98E71] mt-1 flex-shrink-0" value="${feature.term}" ${isChecked ? 'checked' : ''}>
+                    <span class="ml-3 text-gray-700">${feature.term}</span>
+                </label>
+            `;
+        });
+        featureSidebarBackdrop.style.display = 'block';
+        featureSidebar.classList.remove('translate-x-full');
+    }
+    
+    function hideFeatureSidebar() {
+        featureSidebarBackdrop.style.display = 'none';
+        featureSidebar.classList.add('translate-x-full');
+        currentEditingId = null;
+    }
+
+    document.getElementById('saveFeatureButton').addEventListener('click', () => {
+        if (currentEditingId === null) return;
+        const selected = [];
+        document.querySelectorAll('#featureChecklist input:checked').forEach(input => {
+            selected.push(input.value);
+        });
+        const element = elements.find(el => el.id === currentEditingId);
+        if (element) {
+            element.selectedFeatures = selected;
+        }
+        hideFeatureSidebar();
+        updateElementList();
+    });
+
+    document.getElementById('cancelFeatureButton').addEventListener('click', hideFeatureSidebar);
+    featureSidebarBackdrop.addEventListener('click', hideFeatureSidebar);
+
+    function generateReportHTML() {
+        let reportHTML = '<h2>绘画心理分析报告</h2>';
+        const counters = { house: 0, tree: 0, person: 0, attachment: 0 };
+
+        const overallElement = elements.find(el => el.type === 'overall');
+        if (overallElement) {
+            reportHTML += `<h3>${htpData.overall.title}</h3>`;
+            if (overallElement.selectedFeatures.length > 0) {
+                reportHTML += '<ul>';
+                overallElement.selectedFeatures.forEach(term => {
+                    const feature = htpData.overall.features.find(f => f.term === term);
+                    if (feature) reportHTML += `<li><strong>${feature.term}:</strong> ${feature.interpretation}</li>`;
+                });
+                reportHTML += '</ul>';
+            } else {
+                 reportHTML += `<p>未选择任何具体特征。</p>`;
+            }
+        }
+        
+        elements.filter(el => el.type !== 'overall').forEach(el => {
+            counters[el.type]++;
+            const label = `${getTypeText(el.type)} ${counters[el.type]}`;
+            reportHTML += `<h3>${label}</h3>`;
+            if (el.selectedFeatures.length > 0) {
+                reportHTML += '<ul>';
+                el.selectedFeatures.forEach(term => {
+                    const feature = htpData[el.type].features.find(f => f.term === term);
+                    if (feature) reportHTML += `<li><strong>${feature.term}:</strong> ${feature.interpretation}</li>`;
+                });
+                reportHTML += '</ul>';
+            } else {
+                reportHTML += `<p>未为此元素选择任何具体特征。</p>`;
+            }
+        });
+        return reportHTML;
+    }
+
+    generateReportButton.addEventListener('click', () => {
+        const reportHTML = generateReportHTML();
+        const hasContent = elements.some(el => el.selectedFeatures.length > 0);
+        if (hasContent) {
+            reportContent.innerHTML = reportHTML;
+        } else {
+            reportContent.innerHTML = '<h2>绘画心理分析报告</h2><p class="text-center text-gray-600">您没有标注任何元素或选择任何特征，无法生成报告。</p>';
+        }
+        annotationView.style.display = 'none';
+        reportView.style.display = 'block';
+    });
+
+    downloadPdfButton.addEventListener('click', async () => {
+        const button = downloadPdfButton;
+        button.disabled = true;
+        button.textContent = '生成中...';
+
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+            doc.setFont('Helvetica', 'normal');
+
+            const pageHeight = doc.internal.pageSize.height;
+            const pageWidth = doc.internal.pageSize.width;
+            const margin = 40;
+            const lineHeight = 14;
+            const listIndent = 15;
+            let cursorY = margin;
+
+            const checkPageBreak = (neededHeight) => {
+                if (cursorY + neededHeight > pageHeight - margin) {
+                    doc.addPage();
+                    cursorY = margin;
+                }
+            };
+
+            // Add annotated image to PDF
+            const canvasEl = document.getElementById('annotationCanvas');
+            const imageDataUrl = canvasEl.toDataURL('image/jpeg', 0.8);
+            const imgWidth = canvasEl.width;
+            const imgHeight = canvasEl.height;
+            const pdfImgWidth = pageWidth - margin * 2;
+            const pdfImgHeight = (imgHeight * pdfImgWidth) / imgWidth;
+            checkPageBreak(pdfImgHeight + 40);
+            doc.addImage(imageDataUrl, 'JPEG', margin, cursorY, pdfImgWidth, pdfImgHeight);
+            cursorY += pdfImgHeight + 40;
+
+            doc.setFontSize(22);
+            doc.setFont('Helvetica', 'bold');
+            doc.text('Psychological Drawing Analysis Report', pageWidth / 2, cursorY, { align: 'center' });
+            cursorY += 40;
+
+            const dataEN = htpDataEN;
+            const counters = { house: 0, tree: 0, person: 0, attachment: 0 };
+            const typeTextsEN = {house: 'House', tree: 'Tree', person: 'Person', attachment: 'Attachment', overall: 'Overall Assessment'};
+
+            const processElement = (el) => {
+                let label = (el.type === 'overall') ? dataEN.overall.title : `${typeTextsEN[el.type]} ${++counters[el.type]}`;
+                checkPageBreak(40);
+
+                doc.setFontSize(16);
+                doc.setFont('Helvetica', 'bold');
+                doc.text(label, margin, cursorY);
+                cursorY += 8;
+                doc.setLineWidth(1.0);
+                doc.line(margin, cursorY, pageWidth - margin, cursorY);
+                cursorY += 20;
+
+                if (el.selectedFeatures.length > 0) {
+                    el.selectedFeatures.forEach(termZH => {
+                        const featureIndex = htpData[el.type].features.findIndex(f => f.term === termZH);
+                        if (featureIndex === -1) return;
+                        
+                        const featureEN = dataEN[el.type].features[featureIndex];
+                        if (featureEN) {
+                            const termText = `• ${featureEN.term}:`;
+                            const interpretationLines = doc.splitTextToSize(featureEN.interpretation, pageWidth - (margin * 2) - listIndent);
+                            const neededHeight = (lineHeight) + (interpretationLines.length * lineHeight) + 10;
+                            checkPageBreak(neededHeight);
+                            
+                            doc.setFontSize(11);
+                            doc.setFont('Helvetica', 'bold');
+                            doc.text(termText, margin, cursorY);
+                            cursorY += lineHeight;
+
+                            doc.setFont('Helvetica', 'normal');
+                            doc.text(interpretationLines, margin + listIndent, cursorY);
+                            cursorY += (interpretationLines.length * lineHeight) + 10;
+                        }
+                    });
+                } else {
+                    checkPageBreak(25);
+                    doc.setFontSize(11);
+                    doc.setFont('Helvetica', 'italic');
+                    doc.text('No specific features were selected for this element.', margin + listIndent, cursorY);
+                    cursorY += 25;
+                }
+            };
+
+            const overallEl = elements.find(el => el.type === 'overall');
+            if (overallEl) processElement(overallEl);
+            elements.filter(el => el.type !== 'overall').forEach(processElement);
+
+            doc.save('Psychological_Drawing_Analysis_Report.pdf');
+        } catch (error) {
+            console.error("PDF generation failed:", error);
+            alert("生成PDF失败，请检查浏览器控制台获取错误信息。");
+        } finally {
+            button.disabled = false;
+            button.textContent = '下载PDF报告 (英文版)';
+        }
+    });
+
+    backToEditorButton.addEventListener('click', () => {
+        annotationView.style.display = 'block';
+        reportView.style.display = 'none';
+    });
+    
+    resetButton.addEventListener('click', resetApp);
+    
+    window.addEventListener('resize', () => {
+        if (uploadedImage) setupCanvas();
+    });
+});
+</script>
+
+</body>
+</html>

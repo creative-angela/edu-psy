@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>瑞文智力测验</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: #f0f2f5;
+            background-image: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+        }
+        #quiz-container {
+            backdrop-filter: blur(8px); /* slightly less blur */
+            -webkit-backdrop-filter: blur(8px);
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); /* slightly faster transition */
+        }
+        .option-label {
+            transition: all 0.2s ease; /* faster transition */
+            transform-style: preserve-3d;
+        }
+        .option-radio:checked + .option-label {
+            border-color: #3b82f6;
+            background-color: #3b82f6;
+            color: white;
+            transform: translateY(-3px) scale(1.03); /* less prominent animation */
+            box-shadow: 0 6px 12px rgba(59, 130, 246, 0.25); /* smaller shadow */
+        }
+        .option-radio:not(:checked) + .option-label:hover {
+            transform: translateY(-2px); /* smaller hover effect */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* smaller shadow */
+        }
+        .btn-animated {
+            transition: all 0.2s ease;
+        }
+        .btn-animated:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+        }
+        .btn-animated:disabled {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+        /* Animation for question change */
+        .question-fade-out {
+            animation: fadeOut 0.2s ease-out forwards;
+        }
+        .question-fade-in {
+            animation: fadeIn 0.2s ease-in forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-15px); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-2 sm:p-4">
+    <div id="quiz-container" class="rounded-xl shadow-xl w-full max-w-xl mx-auto p-3 sm:p-4">
+        <div id="quiz-content">
+            <div class="mb-3 text-center">
+                <h1 class="text-xl md:text-2xl font-bold text-gray-800">瑞文智力测验</h1>
+                <p class="text-gray-500 text-sm mt-1">请在下方的图形中，选出最合适的一项</p>
+            </div>
+
+            <div class="mb-3">
+                <div class="flex justify-between items-center mb-1 text-gray-700">
+                    <span class="text-xs font-medium">进度</span>
+                    <span id="question-counter" class="text-xs font-semibold">题目 1 / 60</span>
+                </div>
+                <div class="w-full bg-white/50 rounded-full h-2 shadow-inner">
+                    <div id="progress-bar" class="bg-gradient-to-r from-sky-400 to-blue-500 h-2 rounded-full transition-all duration-500" style="width: 1.67%"></div>
+                </div>
+            </div>
+
+            <div class="mb-3 border border-gray-200 rounded-lg overflow-hidden bg-white shadow-md">
+                <img id="question-image" src="" 
+                     alt="问题图片" 
+                     class="w-full h-auto object-contain min-h-[160px] md:min-h-[220px]"
+                     onerror="this.onerror=null;this.src='https://placehold.co/800x400/fecaca/991b1b?text=图片加载失败';">
+            </div>
+
+            <div id="options-container" class="grid gap-2 grid-cols-3 sm:grid-cols-4">
+                </div>
+        </div>
+
+        <div class="mt-4 flex justify-center items-center h-10">
+            <button id="prev-btn" class="btn-animated bg-white text-gray-800 text-sm font-semibold py-2 px-5 rounded-md shadow-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">
+                上一题
+            </button>
+            <button id="finish-btn" class="hidden btn-animated bg-green-600 text-white text-sm font-semibold py-2 px-5 rounded-md shadow-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">
+                完成测验
+            </button>
+        </div>
+    </div>
+
+    <div id="completion-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 transition-opacity duration-200">
+        <div class="bg-white rounded-xl shadow-lg text-center p-5 max-w-sm w-full transform transition-all duration-200 scale-90 opacity-0">
+            <svg class="w-14 h-14 text-green-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <h2 class="text-xl font-bold text-gray-800 mb-1">测验完成！</h2>
+            <p class="text-gray-600 text-sm mb-5">感谢您的参与！请点击下方按钮下载您的答题结果。</p>
+            <button id="export-btn" class="w-full bg-green-600 text-white font-bold py-2 px-5 rounded-md hover:bg-green-700 transition-transform hover:scale-105 text-base shadow-md">
+                下载Excel文件
+            </button>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const TOTAL_QUESTIONS = 60;
+            let currentQuestionIndex = 0;
+            let userAnswers = new Array(TOTAL_QUESTIONS).fill(null);
+            let isTransitioning = false; // Flag to prevent multiple transitions
+
+            const quizContent = document.getElementById('quiz-content');
+            const questionCounter = document.getElementById('question-counter');
+            const progressBar = document.getElementById('progress-bar');
+            const questionImage = document.getElementById('question-image');
+            const optionsContainer = document.getElementById('options-container');
+            const prevBtn = document.getElementById('prev-btn');
+            const finishBtn = document.getElementById('finish-btn');
+            const completionModal = document.getElementById('completion-modal');
+            const exportBtn = document.getElementById('export-btn');
+
+            function getOptionsForQuestion(questionNumber) {
+                const options = [];
+                const numOptions = questionNumber <= 24 ? 6 : 8;
+                for (let i = 1; i <= numOptions; i++) {
+                    options.push(i.toString());
+                }
+                return options;
+            }
+
+            function generateQuestions() {
+                // 重要提示：您需要将图片上传到网络服务器（图床），然后将获取到的URL链接替换到下面。
+                // 浏览器无法直接访问您本地电脑的文件路径（如 C:\Users\... 或 /Users/...）。
+                const imageUrlMap = {
+                    1: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片1.png",
+                    2: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片2.png",
+                    3: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片3.png",
+                    4: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片4.png",
+                    5: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片5.png",
+                    6: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片6.png",
+                    7: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片7.png",
+                    8: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片8.png",
+                    9: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片9.png",
+                    10: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片10.png",
+                    11: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片11.png",
+                    12: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片12.png",
+                    13: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片13.png",
+                    14: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片14.png",
+                    15: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片15.png",
+                    16: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片16.png",
+                    17: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片17.png",
+                    18: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片18.png",
+                    19: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片19.png",
+                    20: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片20.png",
+                    21: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片21.png",
+                    22: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片22.png",
+                    23: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片23.png",
+                    24: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片24.png",
+                    25: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片25.png",
+                    26: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片26.png",
+                    27: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片27.png",
+                    28: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片28.png",
+                    29: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片29.png",
+                    30: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片30.png",
+                    31: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片31.png",
+                    32: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片32.png",
+                    33: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片33.png",
+                    34: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片34.png",
+                    35: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片35.png",
+                    36: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片36.png",
+                    37: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片37.png",
+                    38: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片38.png",
+                    39: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片39.png",
+                    40: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片40.png",
+                    41: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片41.png",
+                    42: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片42.png",
+                    43: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片43.png",
+                    44: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片44.png",
+                    45: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片45.png",
+                    46: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片46.png",
+                    47: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片47.png",
+                    48: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片48.png",
+                    49: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片49.png",
+                    50: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片50.png",
+                    51: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片51.png",
+                    52: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片52.png",
+                    53: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片53.png",
+                    54: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片54.png",
+                    55: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片55.png",
+                    56: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片56.日语",
+                    57: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片57.png",
+                    58: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片58.png",
+                    59: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片59.png",
+                    60: "/Users/sirui/Documents/工作及资质/【工作】/【工作资料Past Work Doc】/【启行营地教育】/【个案管理】/23. 测评-张智宏/2025.8.14-15 张智宏测评/11. 瑞文智力测评✅/瑞文智力测试程序/图片60.png",
+                };
+
+                const questions = [];
+                for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
+                    const imageUrl = imageUrlMap[i] || `https://placehold.co/800x400/f0f2f5/334155?text=问题+${i}+图片`;
+                    questions.push({
+                        id: i,
+                        imageUrl: imageUrl,
+                        options: getOptionsForQuestion(i),
+                    });
+                }
+                return questions;
+            }
+
+            const questions = generateQuestions();
+
+            function renderQuestion() {
+                const question = questions[currentQuestionIndex];
+                const questionNumber = currentQuestionIndex + 1;
+
+                questionCounter.textContent = `题目 ${questionNumber} / ${TOTAL_QUESTIONS}`;
+                progressBar.style.width = `${(questionNumber / TOTAL_QUESTIONS) * 100}%`;
+                questionImage.src = question.imageUrl;
+                questionImage.alt = `问题 ${questionNumber} 图片`;
+                
+                // Adjusted grid columns for options
+                optionsContainer.classList.remove('grid-cols-3', 'sm:grid-cols-4');
+                if (question.options.length <= 6) {
+                    optionsContainer.classList.add('grid-cols-3'); // 3 columns for 6 options
+                } else {
+                    optionsContainer.classList.add('grid-cols-4'); // 4 columns for 8 options
+                }
+                
+                optionsContainer.innerHTML = '';
+                question.options.forEach(option => {
+                    const isChecked = userAnswers[currentQuestionIndex] === option;
+                    const optionElement = `
+                        <div class="relative">
+                            <input type="radio" id="option-${option}" name="options" value="${option}" class="absolute opacity-0 w-0 h-0 option-radio" ${isChecked ? 'checked' : ''}>
+                            <label for="option-${option}" class="option-label flex items-center justify-center p-2 border rounded-md cursor-pointer text-sm bg-white shadow-sm">
+                                <span class="font-medium text-base">${option}</span>
+                            </label>
+                        </div>
+                    `;
+                    optionsContainer.insertAdjacentHTML('beforeend', optionElement);
+                });
+
+                document.querySelectorAll('input[name="options"]').forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        if (isTransitioning) return; // Prevent action if already transitioning
+                        userAnswers[currentQuestionIndex] = e.target.value;
+                        updateNavButtons();
+                        
+                        if (currentQuestionIndex < TOTAL_QUESTIONS - 1) {
+                            goToNext();
+                        } else {
+                            updateNavButtons();
+                        }
+                    });
+                });
+
+                updateNavButtons();
+            }
+
+            function updateNavButtons() {
+                const questionNumber = currentQuestionIndex + 1;
+                prevBtn.disabled = currentQuestionIndex === 0;
+
+                if (questionNumber === TOTAL_QUESTIONS) {
+                    prevBtn.classList.remove('hidden');
+                    finishBtn.classList.remove('hidden');
+                    finishBtn.disabled = !isAllAnswered();
+                } else {
+                    prevBtn.classList.remove('hidden');
+                    finishBtn.classList.add('hidden');
+                }
+                
+                if (currentQuestionIndex === 0) {
+                     prevBtn.classList.add('hidden');
+                }
+            }
+            
+            function isAllAnswered() {
+                return userAnswers.every(answer => answer !== null);
+            }
+
+            function changeQuestion(direction) {
+                isTransitioning = true;
+                quizContent.classList.add('question-fade-out');
+                
+                quizContent.addEventListener('animationend', () => {
+                    quizContent.classList.remove('question-fade-out');
+                    
+                    if (direction === 'next') {
+                        currentQuestionIndex++;
+                    } else {
+                        currentQuestionIndex--;
+                    }
+                    renderQuestion();
+                    
+                    quizContent.classList.add('question-fade-in');
+                    quizContent.addEventListener('animationend', () => {
+                        quizContent.classList.remove('question-fade-in');
+                        isTransitioning = false; // End of transition
+                    }, { once: true });
+                }, { once: true });
+            }
+
+            function goToNext() {
+                if (currentQuestionIndex < TOTAL_QUESTIONS - 1) {
+                    changeQuestion('next');
+                }
+            }
+
+            function goToPrev() {
+                if (currentQuestionIndex > 0) {
+                    changeQuestion('prev');
+                }
+            }
+            
+            function showModal() {
+                completionModal.classList.remove('hidden');
+                setTimeout(() => {
+                    completionModal.style.opacity = '1';
+                    const modalContent = completionModal.querySelector('div');
+                    modalContent.style.opacity = '1';
+                    modalContent.style.transform = 'scale(1)';
+                }, 10);
+            }
+            
+            function hideModal() {
+                 const modalContent = completionModal.querySelector('div');
+                 modalContent.style.opacity = '0';
+                 modalContent.style.transform = 'scale(0.9)';
+                 completionModal.style.opacity = '0';
+                 setTimeout(() => {
+                     completionModal.classList.add('hidden');
+                 }, 200);
+            }
+
+            function exportToCSV() {
+                let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+                csvContent += "题目编号,选择的选项\r\n";
+                userAnswers.forEach((answer, index) => {
+                    csvContent += `${index + 1},${answer || '未选择'}\r\n`;
+                });
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "智力测验结果.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            
+            prevBtn.addEventListener('click', goToPrev);
+            finishBtn.addEventListener('click', () => {
+                if (isAllAnswered()) {
+                    showModal();
+                }
+            });
+            exportBtn.addEventListener('click', () => {
+                exportToCSV();
+                hideModal();
+            });
+            
+            completionModal.addEventListener('click', (e) => {
+                if(e.target === completionModal) {
+                    hideModal();
+                }
+            });
+
+            renderQuestion();
+        });
+    </script>
+</body>
+</html>

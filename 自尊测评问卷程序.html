@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Self-Esteem Questionnaire</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom focus styles for accessibility */
+        input[type="radio"]:focus-visible + label {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-4xl">
+        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <h1 class="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-2">自尊测评问卷</h1>
+            <p class="text-center text-gray-500 mb-8">Coopersmith Self-Esteem Inventory</p>
+
+            <!-- Gender Selection -->
+            <div id="gender-selection" class="mb-8">
+                <h2 class="text-lg font-semibold mb-3 text-gray-700">请选择性别 (Select Gender):</h2>
+                <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div class="flex items-center">
+                        <input type="radio" id="male" name="gender" value="male" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                        <label for="male" class="ml-3 block text-md font-medium text-gray-700">男性 (Male)</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="radio" id="female" name="gender" value="female" class="h-4 w-4 text-pink-600 border-gray-300 focus:ring-pink-500">
+                        <label for="female" class="ml-3 block text-md font-medium text-gray-700">女性 (Female)</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Excel Import -->
+            <div id="excel-import-section" class="mt-8 pt-6 border-t border-gray-200">
+                <h2 class="text-lg font-semibold mb-3 text-gray-700">或者从Excel导入答案 (Or Import Answers from Excel)</h2>
+                <p class="text-sm text-gray-500 mb-4">请先选择性别，然后上传Excel文件。文件格式要求：第一列为题号，第二列为答案 (仅 "yes" 或 "no")。</p>
+                <div class="flex flex-col sm:flex-row items-center gap-4">
+                    <input type="file" id="excel-file-input" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" accept=".xlsx, .xls">
+                    <button id="import-btn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-teal-300 w-full sm:w-auto flex-shrink-0">
+                        导入并计算
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Questions Grid -->
+            <div id="questions-container" class="space-y-4 mt-8 pt-6 border-t border-gray-200">
+                 <h2 class="text-lg font-semibold mb-3 text-gray-700">或者在线完成问卷 (Or Complete Online)</h2>
+                <!-- Questions will be dynamically inserted here -->
+            </div>
+
+            <!-- Action Button -->
+            <div class="mt-10 text-center">
+                <button id="calculate-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    计算分数 (Calculate Score)
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Modal -->
+        <div id="results-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden transition-opacity duration-300">
+            <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-2xl w-full transform transition-all duration-300 scale-95 opacity-0 overflow-y-auto max-h-screen" id="results-content">
+                <h2 class="text-2xl font-bold text-center text-gray-900 mb-4">测评结果 (Results)</h2>
+                
+                <div id="lie-scale-warning" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-md mb-6" role="alert">
+                    <p class="font-bold">注意 (Attention)</p>
+                    <p>您的回答可能不够真实，这会影响结果的准确性。</p>
+                    <div id="lie-questions-details" class="hidden mt-3 text-sm">
+                        <p class="font-semibold">您在以下测谎题目中选择了“像我”：</p>
+                        <ul id="lie-questions-list" class="list-disc list-inside mt-1"></ul>
+                    </div>
+                </div>
+                
+                <div class="text-center bg-gray-50 p-6 rounded-lg mb-6">
+                    <p class="text-lg text-gray-600">您的自尊分数为 (Your Self-Esteem Score):</p>
+                    <p id="score" class="text-6xl font-extrabold text-blue-600 my-2">0</p>
+                </div>
+
+                <div class="text-center">
+                     <p class="text-lg text-gray-600">结果解读 (Interpretation):</p>
+                    <p id="interpretation" class="text-xl font-semibold text-gray-800 mt-2">-</p>
+                </div>
+
+                <div id="key-items-container" class="mt-4">
+                    <!-- Key items analysis will be injected here -->
+                </div>
+
+                <div class="mt-8 text-center flex flex-col sm:flex-row justify-center gap-3">
+                     <button id="export-excel-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-blue-300">
+                        导出Excel
+                    </button>
+                    <button id="export-pdf-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-green-300">
+                        导出PDF
+                    </button>
+                    <button id="close-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-gray-300">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="error-box" class="fixed top-5 right-5 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-lg hidden transition-opacity duration-300" role="alert">
+            <p class="font-bold">错误 (Error)</p>
+            <p id="error-message">Please answer all questions.</p>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const { jsPDF } = window.jspdf;
+            const questionsContainer = document.getElementById('questions-container');
+            const calculateBtn = document.getElementById('calculate-btn');
+            const resultsModal = document.getElementById('results-modal');
+            const resultsContent = document.getElementById('results-content');
+            const keyItemsContainer = document.getElementById('key-items-container');
+            const closeBtn = document.getElementById('close-btn');
+            const exportPdfBtn = document.getElementById('export-pdf-btn');
+            const exportExcelBtn = document.getElementById('export-excel-btn');
+            const importBtn = document.getElementById('import-btn');
+            const fileInput = document.getElementById('excel-file-input');
+            const scoreEl = document.getElementById('score');
+            const interpretationEl = document.getElementById('interpretation');
+            const lieScaleWarningEl = document.getElementById('lie-scale-warning');
+            const lieQuestionsDetailsEl = document.getElementById('lie-questions-details');
+            const lieQuestionsListEl = document.getElementById('lie-questions-list');
+            const errorBox = document.getElementById('error-box');
+            const errorMessageEl = document.getElementById('error-message');
+
+            let currentResults = {};
+            let currentUserAnswers = [];
+
+            const questions = [
+                "我花很多时间做白日梦。", "我对自己很有信心。", "我常常希望自己是别人。", "我很容易被人喜欢。", "我和家人在一起有很多乐趣。", "我从不担心任何事。", "我觉得在众人面前说话很难。", "我希望我能年轻一些。", "如果可以，我想改变自己身上的很多事。", "我能不太费力地做出决定。", "和我在一起很有趣。", "我在家很容易心烦。", "我总是做对的事情。", "我为我的功课感到骄傲。", "总得有人告诉我该做什么。", "我需要很长时间才能适应新事物。", "我常常为我做过的事感到后悔。", "我在同龄人中很受欢迎。", "我的家人通常会考虑我的感受。", "我从没有不快乐。", "我正在尽我所能地做最好的事。", "我很容易让步。", "我通常能照顾好自己。", "我很快乐。", "我宁愿和比我年轻的人交往。", "我的家人对我的期望太高。", "我喜欢我认识的每一个人。", "在团体中我喜欢被点名。", "我了解我自己。", "做我自己挺难的。", "我的生活一团糟。", "人们通常会听从我的想法。", "在家里没人太注意我。", "我从没被骂过。", "我的在校表现不如我期望的好。", "我能下定决心并坚持下去。", "我真的不喜欢做个男孩/女孩。", "我对自己评价较低。", "我不喜欢和别人在一起。", "我有很多次想离家出走。", "我从不害羞。", "我经常感到心烦。", "我常常为自己感到羞愧。", "我长得不如大多数人好看。", "如果我有话要说，我通常会说出来。", "人们经常欺负我。", "我的家人理解我。", "我总是说实话。", "我的雇主或主管让我觉得自己不够好。", "我不在乎发生在我身上的事。", "我是个失败者。", "当我被责骂时，我很容易心烦。", "大多数人比我更受欢迎。", "我通常觉得家人在逼我。", "我总知道该对别人说什么。", "我经常感到沮丧。", "事情通常不会困扰我。", "我不可信赖。"
+            ];
+            const questions_en = [
+                "I spend a lot of time daydreaming.", "I'm pretty sure of myself.", "I often wish I were someone else.", "I'm easy to like.", "My family and I have a lot of fun together.", "I never worry about anything.", "I find it very hard to talk in front of a group.", "I wish I were younger.", "There are lots of things about myself I'd change if I could.", "I can make up my mind without too much trouble.", "It's a lot of fun to be with me.", "I get upset easily at home.", "I always do the right thing.", "I'm proud of my schoolwork.", "Someone always has to tell me what to do.", "It takes me a long time to get used to anything new.", "I'm often sorry for the things I do.", "I'm popular with people my own age.", "My family usually considers my feelings.", "I'm never happy.", "I'm doing the best work that I can.", "I give in very easily.", "I can usually take care of myself.", "I'm pretty happy.", "I would rather hang out with people younger than me.", "My family expects too much of me.", "I like everyone I know.", "I like to be called on in a group.", "I understand myself.", "It's pretty tough to be me.", "My life is all mixed up.", "People usually follow my ideas.", "No one pays much attention to me at home.", "I never get scolded.", "My school performance is not as good as I wish it were.", "I can make a decision and stick with it.", "I really don't like being a boy/girl.", "I have a low opinion of myself.", "I don't like to be with other people.", "I have thought about running away from home many times.", "I'm never shy.", "I often feel upset.", "I'm often ashamed of myself.", "I'm not as good-looking as most people.", "If I have something to say, I usually say it.", "People often pick on me.", "My family understands me.", "I always tell the truth.", "My employer or supervisor makes me feel I'm not good enough.", "I don't care what happens to me.", "I'm a failure.", "I get upset easily when I'm scolded.", "Most people are more popular than I am.", "I usually feel as if my family is pushing me.", "I always know what to say to people.", "I often get discouraged.", "Things don't usually bother me.", "I'm not a person you can trust."
+            ];
+            const TOTAL_QUESTIONS = questions.length;
+            const lieScaleItems = new Set([6, 13, 20, 27, 34, 41, 48]);
+            const positiveItems = new Set([2, 4, 5, 10, 11, 14, 18, 19, 21, 23, 24, 28, 29, 32, 36, 45, 47, 55, 57]);
+            const negativeItems = new Set([1, 3, 7, 8, 9, 12, 15, 16, 17, 22, 25, 26, 30, 31, 33, 35, 37, 38, 39, 40, 42, 43, 44, 46, 49, 50, 51, 52, 53, 54, 56, 58]);
+
+            function generateQuestions() {
+                let questionsHTML = '';
+                questions.forEach((text, index) => {
+                    const i = index + 1;
+                    questionsHTML += `
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <span class="font-medium text-gray-700 mb-2 sm:mb-0">${i}. ${text}</span>
+                            <div class="flex items-center space-x-4 flex-shrink-0">
+                                <div class="flex items-center">
+                                    <input type="radio" id="q${i}-yes" name="q${i}" value="yes" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                    <label for="q${i}-yes" class="ml-2 text-sm text-gray-600">像我</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="radio" id="q${i}-no" name="q${i}" value="no" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                    <label for="q${i}-no" class="ml-2 text-sm text-gray-600">不像我</label>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                questionsContainer.innerHTML += questionsHTML;
+            }
+
+            function showError(message) {
+                errorMessageEl.textContent = message;
+                errorBox.classList.remove('hidden');
+                setTimeout(() => { errorBox.classList.add('hidden'); }, 3000);
+            }
+
+            function getAnswersFromForm() {
+                const answers = [];
+                for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
+                    const answerEl = document.querySelector(`input[name="q${i}"]:checked`);
+                    if (answerEl) {
+                        answers.push(answerEl.value);
+                    } else {
+                        answers.push(null);
+                    }
+                }
+                return answers;
+            }
+
+            function performCalculation(answers, gender) {
+                if (answers.some(a => a === null)) {
+                    showError(`请回答所有 ${TOTAL_QUESTIONS} 个问题。`);
+                    return;
+                }
+                
+                currentUserAnswers = answers;
+                let rawScore = 0;
+                let lieScore = 0;
+                let liedQuestions = [];
+                let liedQuestions_en = [];
+                let contributingItems = [];
+                const options = { 'yes': '像我', 'no': '不像我' };
+                const options_en = { 'yes': 'Like me', 'no': 'Unlike me' };
+
+                answers.forEach((value, index) => {
+                    const i = index + 1;
+                    if (lieScaleItems.has(i)) {
+                        if (value === 'yes') {
+                            lieScore++;
+                            liedQuestions.push(questions[i - 1]);
+                            liedQuestions_en.push(questions_en[i - 1]);
+                        }
+                        return; // Lie scale items don't contribute to self-esteem score
+                    }
+
+                    const isPositive = positiveItems.has(i);
+                    const scoresPoint = (isPositive && value === 'yes') || (!isPositive && value === 'no');
+                    
+                    if (scoresPoint) {
+                        rawScore++;
+                        contributingItems.push({
+                            id: i, text: questions[i - 1], text_en: questions_en[i - 1],
+                            answer: options[value], answer_en: options_en[value], type: 'high-esteem'
+                        });
+                    } else {
+                        contributingItems.push({
+                            id: i, text: questions[i - 1], text_en: questions_en[i - 1],
+                            answer: options[value], answer_en: options_en[value], type: 'low-esteem'
+                        });
+                    }
+                });
+
+                displayResults(rawScore, lieScore, gender, liedQuestions, liedQuestions_en, contributingItems);
+            }
+
+            function calculateScoreFromForm() {
+                const selectedGender = document.querySelector('input[name="gender"]:checked');
+                if (!selectedGender) {
+                    showError('请选择您的性别。');
+                    return;
+                }
+                const answers = getAnswersFromForm();
+                performCalculation(answers, selectedGender.value);
+            }
+
+            function getInterpretation(score, gender) {
+                const levels = gender === 'male' ? [33, 36, 40, 44] : [32, 35, 39, 43];
+                const labels = ['显著低于平均水平', '略低于平均水平', '平均水平', '略高于平均水平', '显著高于平均水平'];
+                if (score <= levels[0]) return { text: labels[0], type: 'low' };
+                if (score <= levels[1]) return { text: labels[1], type: 'normal' };
+                if (score <= levels[2]) return { text: labels[2], type: 'normal' };
+                if (score <= levels[3]) return { text: labels[3], type: 'normal' };
+                return { text: labels[4], type: 'high' };
+            }
+
+            function getEnglishInterpretation(score, gender) {
+                const levels = gender === 'male' ? [33, 36, 40, 44] : [32, 35, 39, 43];
+                const labels = ['Significantly below average', 'Somewhat below average', 'Average', 'Somewhat above average', 'Significantly above average'];
+                if (score <= levels[0]) return labels[0];
+                if (score <= levels[1]) return labels[1];
+                if (score <= levels[2]) return labels[2];
+                if (score <= levels[3]) return labels[3];
+                return labels[4];
+            }
+            
+            function displayResults(score, lieScore, gender, liedQuestions, liedQuestions_en, allItems) {
+                const interpretationResult = getInterpretation(score, gender);
+                let finalContributingItems = [];
+                let analysisTitle = '';
+
+                if (interpretationResult.type === 'high') {
+                    finalContributingItems = allItems.filter(item => item.type === 'high-esteem');
+                    analysisTitle = '以下“高自尊”相关的回答主要导致了分数偏高：';
+                } else if (interpretationResult.type === 'low') {
+                    finalContributingItems = allItems.filter(item => item.type === 'low-esteem');
+                    analysisTitle = '以下“低自尊”相关的回答主要导致了分数偏低：';
+                }
+
+                currentResults = { score, gender, lieScore, liedQuestions_en, contributingItems: finalContributingItems };
+                scoreEl.textContent = score;
+                interpretationEl.textContent = interpretationResult.text;
+
+                if (lieScore >= 3) {
+                    lieScaleWarningEl.classList.remove('hidden');
+                    lieQuestionsDetailsEl.classList.remove('hidden');
+                    lieQuestionsListEl.innerHTML = liedQuestions.map(q => `<li>${q}</li>`).join('');
+                } else {
+                    lieScaleWarningEl.classList.add('hidden');
+                    lieQuestionsDetailsEl.classList.add('hidden');
+                    lieQuestionsListEl.innerHTML = '';
+                }
+
+                if (finalContributingItems.length > 0) {
+                    let itemsHTML = `<details class="text-left mt-4"><summary class="cursor-pointer font-semibold text-gray-700">关键题目分析</summary>
+                        <div class="pt-2 pl-4 mt-2 bg-gray-50 p-3 rounded-md">
+                            <p class="text-xs text-gray-600 mb-2">${analysisTitle}</p>
+                            <ul class="list-disc list-inside space-y-1">`;
+                    finalContributingItems.forEach(item => {
+                        itemsHTML += `<li class="text-xs text-gray-800">${item.id}. ${item.text} (您的回答: <strong>${item.answer}</strong>)</li>`;
+                    });
+                    itemsHTML += `</ul></div></details>`;
+                    keyItemsContainer.innerHTML = itemsHTML;
+                } else {
+                    keyItemsContainer.innerHTML = '';
+                }
+                
+                resultsModal.classList.remove('hidden');
+                setTimeout(() => {
+                    resultsModal.classList.add('opacity-100');
+                    resultsContent.classList.remove('scale-95', 'opacity-0');
+                    resultsContent.classList.add('scale-100', 'opacity-100');
+                }, 10);
+            }
+
+            function closeModal() {
+                resultsModal.classList.remove('opacity-100');
+                resultsContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => { resultsModal.classList.add('hidden'); }, 300);
+            }
+
+            function exportToPDF() {
+                try {
+                    const doc = new jsPDF();
+                    const { score, gender, lieScore, liedQuestions_en, contributingItems } = currentResults;
+                    const englishInterpretation = getEnglishInterpretation(score, gender);
+
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(18);
+                    doc.text("Coopersmith Self-Esteem Inventory Results", 105, 15, { align: 'center' });
+                    
+                    let finalY = 25;
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(12);
+                    doc.text(`Gender: ${gender.charAt(0).toUpperCase() + gender.slice(1)}`, 14, finalY);
+                    doc.text(`Self-Esteem Score: ${score}`, 14, finalY + 7);
+                    finalY += 14;
+
+                    doc.setFont("helvetica", "bold");
+                    doc.text("Interpretation:", 14, finalY);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(doc.splitTextToSize(englishInterpretation, 180), 16, finalY + 5);
+                    finalY += 15;
+
+                    if (lieScore >= 3) {
+                        if (finalY > 250) { doc.addPage(); finalY = 20; }
+                        doc.setFont("helvetica", "bold");
+                        doc.text("Lie Scale Analysis:", 14, finalY);
+                        doc.setFont("helvetica", "normal");
+                        const warningText = `Lie Score: ${lieScore}. A score of 3 or higher suggests a tendency to present an overly positive image, which may affect the validity of the self-esteem score. The following 'lie scale' items were answered as 'Like me':`;
+                        const splitWarning = doc.splitTextToSize(warningText, 180);
+                        doc.text(splitWarning, 16, finalY + 5);
+                        finalY += (splitWarning.length * 5) + 5;
+                        const lieItemsText = liedQuestions_en.map((q, index) => `${index + 1}. ${q}`).join('\n');
+                        const splitLieItems = doc.splitTextToSize(lieItemsText, 175);
+                        doc.text(splitLieItems, 18, finalY);
+                        finalY += (splitLieItems.length * 5) + 5;
+                    }
+
+                    if (contributingItems && contributingItems.length > 0) {
+                        if (finalY > 250) { doc.addPage(); finalY = 20; }
+                        doc.setFont("helvetica", "bold");
+                        doc.text(`Key Item Analysis`, 14, finalY);
+                        finalY += 7;
+                        doc.setFont("helvetica", "normal");
+                        doc.setFontSize(9);
+                        const itemsText = contributingItems.map(item => `Q${item.id}: ${item.text_en} (Answer: "${item.answer_en}")`).join('\n');
+                        const splitText = doc.splitTextToSize(itemsText, 180);
+                        doc.text(splitText, 16, finalY);
+                    }
+
+                    doc.save("Self-Esteem-Results.pdf");
+                } catch (err) {
+                     console.error("PDF Export Error:", err);
+                    showError("导出PDF失败 (Failed to export PDF.)");
+                }
+            }
+
+            function exportToExcel() {
+                const data = [["Question No.", "Question (Chinese)", "Question (English)", "Answer"]];
+                for(let i = 0; i < TOTAL_QUESTIONS; i++) {
+                    data.push([i + 1, questions[i], questions_en[i], currentUserAnswers[i]]);
+                }
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Answers");
+                XLSX.writeFile(wb, "Self-Esteem-Answers.xlsx");
+            }
+
+            function handleFileUpload(event) {
+                const selectedGender = document.querySelector('input[name="gender"]:checked');
+                if (!selectedGender) {
+                    showError('请在上传文件前选择性别。');
+                    fileInput.value = '';
+                    return;
+                }
+
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        const sheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[sheetName];
+                        const json = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                        
+                        if (json.length < TOTAL_QUESTIONS) { 
+                            throw new Error(`Excel文件内容不完整，应包含 ${TOTAL_QUESTIONS} 行答案。`);
+                        }
+
+                        const answers = [];
+                        for (let i = 0; i < TOTAL_QUESTIONS; i++) {
+                            const row = json[i];
+                            const questionNumber = i + 1;
+
+                            if (!row || row[1] === undefined || row[1] === null) {
+                                throw new Error(`第 ${questionNumber} 行答案缺失。`);
+                            }
+                            
+                            const answer = String(row[1]).toLowerCase().trim();
+                            if (answer !== 'yes' && answer !== 'no') {
+                                throw new Error(`第 ${questionNumber} 行的答案 "${row[1]}" 无效，请输入 "yes" 或 "no"。`);
+                            }
+                            answers.push(answer);
+                        }
+                        
+                        performCalculation(answers, selectedGender.value);
+
+                    } catch (err) {
+                        showError(`文件处理失败: ${err.message}`);
+                    } finally {
+                        fileInput.value = '';
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            calculateBtn.addEventListener('click', calculateScoreFromForm);
+            closeBtn.addEventListener('click', closeModal);
+            exportPdfBtn.addEventListener('click', exportToPDF);
+            exportExcelBtn.addEventListener('click', exportToExcel);
+            importBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileUpload);
+            resultsModal.addEventListener('click', (e) => {
+                if (e.target === resultsModal) closeModal();
+            });
+
+            generateQuestions();
+        });
+    </script>
+
+</body>
+</html>

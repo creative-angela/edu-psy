@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Expectation Questionnaire</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom focus styles for accessibility */
+        input[type="radio"]:focus-visible + label {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-4xl">
+        <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <h1 class="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-2">社会期望问卷</h1>
+            <p class="text-center text-gray-500 mb-8">Social Expectation Questionnaire</p>
+            <p class="text-center text-sm text-gray-600 mb-8">指导语：请认真阅读以下问卷，读完一句话后，看看是否适合你。如果适合你，就在句子后面的“是”上选择，如果不适合，在“否”上选择。</p>
+
+            <!-- Excel Import -->
+            <div id="excel-import-section" class="mt-8 pt-6 border-t border-gray-200">
+                <h2 class="text-lg font-semibold mb-3 text-gray-700">从Excel导入答案 (Import Answers from Excel)</h2>
+                <p class="text-sm text-gray-500 mb-4">文件格式要求：第一列为题号，第二列为答案 (仅 "是" 或 "否" / "yes" or "no")。</p>
+                <div class="flex flex-col sm:flex-row items-center gap-4">
+                    <input type="file" id="excel-file-input" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" accept=".xlsx, .xls">
+                    <button id="import-btn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-teal-300 w-full sm:w-auto flex-shrink-0">
+                        导入并计算
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Questions Grid -->
+            <div id="questions-container" class="space-y-4 mt-8 pt-6 border-t border-gray-200">
+                 <h2 class="text-lg font-semibold mb-3 text-gray-700">在线完成问卷 (Complete Online)</h2>
+                <!-- Questions will be dynamically inserted here -->
+            </div>
+
+            <!-- Action Button -->
+            <div class="mt-10 text-center">
+                <button id="calculate-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    计算分数 (Calculate Score)
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Modal -->
+        <div id="results-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden transition-opacity duration-300">
+            <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-2xl w-full transform transition-all duration-300 scale-95 opacity-0 overflow-y-auto max-h-screen" id="results-content">
+                <h2 class="text-2xl font-bold text-center text-gray-900 mb-4">测评结果 (Results)</h2>
+                
+                <div class="text-center bg-gray-50 p-6 rounded-lg mb-6">
+                    <p class="text-lg text-gray-600">您的社会期望分数为 (Your Social Desirability Score):</p>
+                    <p id="score" class="text-6xl font-extrabold text-blue-600 my-2">0</p>
+                </div>
+
+                <div class="text-center">
+                     <p class="text-lg text-gray-600">结果解读 (Interpretation):</p>
+                    <p id="interpretation" class="text-xl font-semibold text-gray-800 mt-2">-</p>
+                </div>
+
+                <div id="key-items-container" class="mt-4">
+                    <!-- Key items analysis will be injected here -->
+                </div>
+
+                <div class="mt-8 text-center flex flex-col sm:flex-row justify-center gap-3">
+                     <button id="export-excel-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-blue-300">
+                        导出Excel
+                    </button>
+                    <button id="export-pdf-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-green-300">
+                        导出PDF
+                    </button>
+                    <button id="close-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-gray-300">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="error-box" class="fixed top-5 right-5 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-lg hidden transition-opacity duration-300" role="alert">
+            <p class="font-bold">错误 (Error)</p>
+            <p id="error-message">Please answer all questions.</p>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const { jsPDF } = window.jspdf;
+            const questionsContainer = document.getElementById('questions-container');
+            const calculateBtn = document.getElementById('calculate-btn');
+            const resultsModal = document.getElementById('results-modal');
+            const resultsContent = document.getElementById('results-content');
+            const keyItemsContainer = document.getElementById('key-items-container');
+            const closeBtn = document.getElementById('close-btn');
+            const exportPdfBtn = document.getElementById('export-pdf-btn');
+            const exportExcelBtn = document.getElementById('export-excel-btn');
+            const importBtn = document.getElementById('import-btn');
+            const fileInput = document.getElementById('excel-file-input');
+            const scoreEl = document.getElementById('score');
+            const interpretationEl = document.getElementById('interpretation');
+            const errorBox = document.getElementById('error-box');
+            const errorMessageEl = document.getElementById('error-message');
+
+            let currentResults = {};
+            let currentUserAnswers = [];
+
+            const questions = [
+                "我在聚会时总能开心。", "我有时说一点谎话。", "我从不因为要放下手头的事去上学或开始吃饭而生气。", "有时候，我不喜欢把自己的东西分给朋友。", "我对别人总是很尊重。", "我绝不会打比我弱小的孩子。", "我有时不喜欢做老师让我做的事情。", "我从来不对父母顶嘴。", "我犯了错误时，总是承认自己错了。", "我觉得父母并不是每件事都判断得对。", "我从没想过要对别人说不友好的话。", "我总是按时完成所有家庭作业。", "有时我想摔东西或砸东西。", "我从来没有让别人因为我的过错挨骂受批评。", "有时我说的一些话，只是为了给朋友们留一个好印象。", "我总是小心地保持衣服的干净和房间的整洁。", "我生气时从不大喊大叫。", "即使没有生病，有时我也喜欢呆在家里不去上学。", "有时我真希望父母别事事管得那么死。", "我总帮助需要帮助的人。", "我有时跟妈妈吵着要做她不想让我做的事。", "我从没说过什么让别人觉得不好的话。", "老师对什么都比我懂得多。", "我总是很有礼貌，对不太好的人也不例外。", "我有时做一些不准我做的事情。", "我从不生气。", "有时我要某一件东西，仅仅是因为别人有了这样东西。", "我总是听父母的话。", "我从来不忘记说“请”、“谢谢”。", "我有时真希望光是尽情的玩，不用去上学。", "我每次吃饭以前都洗手。", "有时我知道父母需要帮忙做家务，我也不帮他们。", "我从来没觉得交朋友有困难。", "我从没做过破坏纪律或违反法律的事。", "别人做了对我不利的事情时，我有时想跟他们算账。", "我有时因为得不到我想要的东西而生气。", "我总是帮助受伤的小动物。", "有时我想做一些父母认为我这个年纪还不能做的事情。", "有时我觉得取笑别人挺有意思。", "我从来没有不经过允许就借用别人的东西。", "当别人干扰了我正在做的事情，我有时感到厌烦。", "我总是乐于与别人合作。", "当我最好的朋友想做我不想做的事情，我从不感到厌烦。", "我有时希望别的孩子对我说的话更注意。", "我总是做恰当的事情。", "我有时不愿意服从父母。", "当别人要我替他做事时，我有时不情愿。", "当别人不按我的愿望做事时，有时我会特别生气。"
+            ];
+            const questions_en = [
+                "I always have fun at parties.", "I sometimes tell a little lie.", "I never get angry about having to stop what I'm doing to go to school or start a meal.", "Sometimes, I don't like to share my things with friends.", "I am always respectful of others.", "I would never hit a child smaller than me.", "I sometimes dislike doing what my teacher asks me to do.", "I never talk back to my parents.", "When I make a mistake, I always admit I'm wrong.", "I feel that my parents are not always right about everything.", "I have never thought of saying something unfriendly to others.", "I always finish all my homework on time.", "Sometimes I want to throw or break things.", "I have never let someone else get blamed for my mistakes.", "Sometimes I say things just to make a good impression on my friends.", "I am always careful to keep my clothes clean and my room tidy.", "I never shout when I'm angry.", "Sometimes I like to stay home from school even if I'm not sick.", "Sometimes I really wish my parents wouldn't be so strict about everything.", "I always help people in need.", "I sometimes argue with my mom to do things she doesn't want me to do.", "I have never said anything that made others feel bad.", "My teacher knows more about everything than I do.", "I am always polite, even to people who are not very nice.", "I sometimes do things I'm not supposed to do.", "I never get angry.", "Sometimes I want something just because someone else has it.", "I always listen to my parents.", "I never forget to say 'please' and 'thank you'.", "Sometimes I wish I could just play all day and not go to school.", "I wash my hands before every meal.", "Sometimes I don't help my parents with chores even when I know they need help.", "I have never had trouble making friends.", "I have never done anything to break the rules or the law.", "When someone does something against me, I sometimes want to get even with them.", "I sometimes get angry when I don't get what I want.", "I always help injured small animals.", "Sometimes I want to do things my parents think I'm too young for.", "Sometimes I think it's fun to make fun of others.", "I have never borrowed something without permission.", "I sometimes get annoyed when others interrupt what I'm doing.", "I am always happy to cooperate with others.", "I never get annoyed when my best friend wants to do something I don't want to do.", "I sometimes wish other kids would pay more attention to what I say.", "I always do the right thing.", "I sometimes disobey my parents.", "Sometimes I'm reluctant when others ask me to do things for them.", "Sometimes I get very angry when people don't do what I want."
+            ];
+            
+            const TOTAL_QUESTIONS = 48;
+            const reverseScoredItems = new Set([2, 4, 7, 10, 13, 15, 18, 19, 21, 25, 27, 30, 32, 35, 36, 38, 39, 41, 44, 46, 47, 48]);
+
+            function generateQuestions() {
+                let questionsHTML = '';
+                questions.forEach((text, index) => {
+                    const i = index + 1;
+                    questionsHTML += `
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <span class="font-medium text-gray-700 mb-2 sm:mb-0">${i}. ${text}</span>
+                            <div class="flex items-center space-x-4 flex-shrink-0">
+                                <div class="flex items-center">
+                                    <input type="radio" id="q${i}-yes" name="q${i}" value="yes" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                    <label for="q${i}-yes" class="ml-2 text-sm text-gray-600">是</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="radio" id="q${i}-no" name="q${i}" value="no" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                    <label for="q${i}-no" class="ml-2 text-sm text-gray-600">否</label>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                questionsContainer.innerHTML += questionsHTML;
+            }
+
+            function showError(message) {
+                errorMessageEl.textContent = message;
+                errorBox.classList.remove('hidden');
+                setTimeout(() => { errorBox.classList.add('hidden'); }, 3000);
+            }
+
+            function getAnswersFromForm() {
+                const answers = [];
+                for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
+                    const answerEl = document.querySelector(`input[name="q${i}"]:checked`);
+                    if (answerEl) {
+                        answers.push(answerEl.value);
+                    } else {
+                        answers.push(null);
+                    }
+                }
+                return answers;
+            }
+
+            function performCalculation(answers) {
+                if (answers.some(a => a === null)) {
+                    showError(`请回答所有 ${TOTAL_QUESTIONS} 个问题。`);
+                    return;
+                }
+                
+                currentUserAnswers = answers;
+                let score = 0;
+                let contributingItems = [];
+                const options = { 'yes': '是', 'no': '否' };
+                const options_en = { 'yes': 'Yes', 'no': 'No' };
+
+                answers.forEach((value, index) => {
+                    const i = index + 1;
+                    const isReverse = reverseScoredItems.has(i);
+                    const scoresPoint = (isReverse && value === 'no') || (!isReverse && value === 'yes');
+                    
+                    if (scoresPoint) {
+                        score++;
+                        contributingItems.push({
+                            id: i,
+                            text: questions[i - 1],
+                            text_en: questions_en[i - 1],
+                            answer: options[value],
+                            answer_en: options_en[value],
+                            type: 'pro-social'
+                        });
+                    } else {
+                         contributingItems.push({
+                            id: i,
+                            text: questions[i - 1],
+                            text_en: questions_en[i - 1],
+                            answer: options[value],
+                            answer_en: options_en[value],
+                            type: 'anti-social'
+                        });
+                    }
+                });
+
+                displayResults(score, contributingItems);
+            }
+
+            function calculateScoreFromForm() {
+                const answers = getAnswersFromForm();
+                performCalculation(answers);
+            }
+
+            function getInterpretation(score) {
+                if (score <= 15) return '社会期望倾向低，可能更真实或逆反。';
+                if (score <= 32) return '正常范围，符合多数儿童表现。';
+                return '过度追求社会认可，可能掩饰真实行为。';
+            }
+
+            function getEnglishInterpretation(score) {
+                if (score <= 15) return 'Low social desirability, suggesting responses may be more authentic or oppositional.';
+                if (score <= 32) return 'Normal range, consistent with the behavior of most children.';
+                return 'High social desirability, suggesting an excessive need for social approval, which may involve masking true behaviors.';
+            }
+            
+            function displayResults(score, allItems) {
+                let finalContributingItems = [];
+                let analysisTitle = '';
+
+                if (score >= 33) {
+                    finalContributingItems = allItems.filter(item => item.type === 'pro-social');
+                    analysisTitle = '以下“符合社会期望”的回答主要导致了分数偏高：';
+                } else if (score <= 15) {
+                    finalContributingItems = allItems.filter(item => item.type === 'anti-social');
+                     analysisTitle = '以下“不符合社会期望”的回答主要导致了分数偏低：';
+                }
+
+                currentResults = { score, contributingItems: finalContributingItems };
+                scoreEl.textContent = score;
+                interpretationEl.textContent = getInterpretation(score);
+
+                if (finalContributingItems.length > 0) {
+                    let itemsHTML = `<details class="text-left mt-4"><summary class="cursor-pointer font-semibold text-gray-700">关键题目分析</summary>
+                        <div class="pt-2 pl-4 mt-2 bg-gray-50 p-3 rounded-md">
+                            <p class="text-xs text-gray-600 mb-2">${analysisTitle}</p>
+                            <ul class="list-disc list-inside space-y-1">`;
+                    finalContributingItems.forEach(item => {
+                        itemsHTML += `<li class="text-xs text-gray-800">${item.id}. ${item.text} (您的回答: <strong>${item.answer}</strong>)</li>`;
+                    });
+                    itemsHTML += `</ul></div></details>`;
+                    keyItemsContainer.innerHTML = itemsHTML;
+                } else {
+                    keyItemsContainer.innerHTML = '';
+                }
+                
+                resultsModal.classList.remove('hidden');
+                setTimeout(() => {
+                    resultsModal.classList.add('opacity-100');
+                    resultsContent.classList.remove('scale-95', 'opacity-0');
+                    resultsContent.classList.add('scale-100', 'opacity-100');
+                }, 10);
+            }
+
+            function closeModal() {
+                resultsModal.classList.remove('opacity-100');
+                resultsContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => { resultsModal.classList.add('hidden'); }, 300);
+            }
+
+            function exportToPDF() {
+                try {
+                    const doc = new jsPDF();
+                    const { score, contributingItems } = currentResults;
+                    const englishInterpretation = getEnglishInterpretation(score);
+
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(20);
+                    doc.text("Social Desirability Questionnaire Results", 105, 20, { align: 'center' });
+                    doc.setLineWidth(0.5);
+                    doc.line(20, 25, 190, 25);
+                    doc.setFont("helvetica", "normal");
+                    doc.setFontSize(14);
+                    doc.text(`Score: ${score}`, 20, 40);
+                    doc.setFont("helvetica", "bold");
+                    doc.text("Interpretation:", 20, 50);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(doc.splitTextToSize(englishInterpretation, 170), 25, 60);
+
+                    let finalY = 70;
+                    if (contributingItems.length > 0) {
+                        finalY += 10;
+                         if (finalY > 260) { doc.addPage(); finalY = 20; }
+                        doc.setFont("helvetica", "bold");
+                        doc.setFontSize(12);
+                        doc.text(`Key Item Analysis`, 14, finalY);
+                        finalY += 7;
+                        doc.setFont("helvetica", "normal");
+                        doc.setFontSize(9);
+                        const itemsText = contributingItems.map(item => `Q${item.id}: ${item.text_en} (Answer: "${item.answer_en}")`).join('\n');
+                        const splitText = doc.splitTextToSize(itemsText, 180);
+                        doc.text(splitText, 16, finalY);
+                    }
+
+                    doc.save("Social-Desirability-Results.pdf");
+                } catch (err) {
+                     console.error("PDF Export Error:", err);
+                    showError("导出PDF失败 (Failed to export PDF.)");
+                }
+            }
+
+            function exportToExcel() {
+                const data = [["Question No.", "Question (Chinese)", "Question (English)", "Answer"]];
+                for(let i = 0; i < TOTAL_QUESTIONS; i++) {
+                    const answerText = currentUserAnswers[i] === 'yes' ? '是' : '否';
+                    data.push([i + 1, questions[i], questions_en[i], answerText]);
+                }
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Answers");
+                XLSX.writeFile(wb, "Social-Desirability-Answers.xlsx");
+            }
+
+            function handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        const sheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[sheetName];
+                        const json = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                        
+                        if (json.length < TOTAL_QUESTIONS) { 
+                            throw new Error(`Excel文件内容不完整，应包含 ${TOTAL_QUESTIONS} 行答案。`);
+                        }
+
+                        const answers = [];
+                        for (let i = 0; i < TOTAL_QUESTIONS; i++) {
+                            const row = json[i];
+                            const questionNumber = i + 1;
+
+                            if (!row || row[1] === undefined || row[1] === null) {
+                                throw new Error(`第 ${questionNumber} 行答案缺失。`);
+                            }
+                            
+                            let answer = String(row[1]).toLowerCase().trim();
+                            if (answer === '是') answer = 'yes';
+                            if (answer === '否') answer = 'no';
+
+                            if (answer !== 'yes' && answer !== 'no') {
+                                throw new Error(`第 ${questionNumber} 行的答案 "${row[1]}" 无效，请输入 "是" 或 "否" (或 "yes"/"no")。`);
+                            }
+                            answers.push(answer);
+                        }
+                        
+                        performCalculation(answers);
+
+                    } catch (err) {
+                        showError(`文件处理失败: ${err.message}`);
+                    } finally {
+                        fileInput.value = '';
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            calculateBtn.addEventListener('click', calculateScoreFromForm);
+            closeBtn.addEventListener('click', closeModal);
+            exportPdfBtn.addEventListener('click', exportToPDF);
+            exportExcelBtn.addEventListener('click', exportToExcel);
+            importBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileUpload);
+            resultsModal.addEventListener('click', (e) => {
+                if (e.target === resultsModal) closeModal();
+            });
+
+            generateQuestions();
+        });
+    </script>
+
+</body>
+</html>
