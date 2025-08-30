@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -64,17 +64,6 @@
             <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-5xl w-full transform transition-all duration-300 scale-95 opacity-0 overflow-y-auto max-h-screen" id="results-content">
                 <h2 class="text-2xl font-bold text-center text-gray-900 mb-6">测评结果 (Results)</h2>
                 
-                <div class="w-full max-w-lg mx-auto mb-8">
-                    <h3 class="text-xl font-semibold text-center mb-2 text-gray-800">防御风格总览</h3>
-                    <canvas id="radar-chart"></canvas>
-                </div>
-
-                <div id="detailed-charts-container" class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-                    <div><h4 class="text-lg font-semibold text-center mb-2">不成熟防御机制</h4><canvas id="immature-radar-chart"></canvas></div>
-                    <div><h4 class="text-lg font-semibold text-center mb-2">成熟防御机制</h4><canvas id="mature-radar-chart"></canvas></div>
-                    <div><h4 class="text-lg font-semibold text-center mb-2">中间型防御机制</h4><canvas id="intermediate-radar-chart"></canvas></div>
-                </div>
-                
                 <div id="interpretation-container" class="mb-6">
                     <!-- Interpretation text will be injected here -->
                 </div>
@@ -82,8 +71,16 @@
                 <div id="results-summary-container" class="mb-6">
                     <!-- Factor summary table will be injected here -->
                 </div>
-                <div id="results-detail-container">
-                    <!-- Detailed mechanism tables will be injected here -->
+
+                <div class="w-full max-w-lg mx-auto mb-8 border-t pt-6">
+                    <!-- The h3 title was moved to JS to avoid duplication -->
+                    <div class="relative h-auto w-full">
+                        <canvas id="radar-chart"></canvas>
+                    </div>
+                </div>
+                
+                <div id="results-detail-container" class="space-y-10">
+                    <!-- Detailed mechanism tables and charts will be injected here -->
                 </div>
                 <div class="mt-8 text-center flex flex-col sm:flex-row justify-center gap-3">
                      <button id="export-excel-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-4 focus:ring-blue-300">
@@ -123,19 +120,15 @@
             const errorBox = document.getElementById('error-box');
             const errorMessageEl = document.getElementById('error-message');
             
-            const chartCanvases = {
-                main: document.getElementById('radar-chart'),
-                immature: document.getElementById('immature-radar-chart'),
-                mature: document.getElementById('mature-radar-chart'),
-                intermediate: document.getElementById('intermediate-radar-chart')
-            };
+            // Canvases will be created dynamically
+            let chartCanvases = { main: document.getElementById('radar-chart') };
             let charts = {};
 
             let currentResults = {};
             let currentUserAnswers = [];
 
             const questions = [
-                "我从帮助他人而获得满足，如果不这样做，我就会变得情绪抑郁", "人们常说我是个脾气暴躁的人", "在我没有时间处理某个棘手的事情时，我可以把它搁置一边", "人们总是不公平地对待我", "我通过做一些积极的或预见性的事情来摆脱自己的焦虑不安，如绘画、做木工活等", "偶尔，我把一些今天该做的事情推迟到明天做", "我不知道为什么总是遇到相同的受挫情境", "我能够相当轻松地嘲笑我自己", "我受到挫折时，表现就象个孩子", "在维护我的利益方面，我羞于与人计较", "我比我认识的人中大多数都强", "人们往往虐待我", "如果某人骗了我或偷了我的钱，我宁愿他得到帮助，而不是受惩罚", "偶尔，我想一些坏得不能说出口的事情", "偶尔，我因一些下流的笑话而大笑", "人们说我象一只驼鸟，把自己的头埋入沙中，换句话说，我往往有意忽视一些不愉快的事情。", "我常常不能竭尽全力地与人竞争", "我常感到比和我在一起的人强", "某人正在想剥夺我所得到的一切", "我有时发怒", "我时常在某种内在力量的驱使下，不由自主地做出些行为", "我宁愿饿死而不愿被迫吃饭", "我常常故意忽视一些危险，似乎我是个超人", "我以有贬低别人威望的能力而自豪", "人们告诉我：我总有被害的感觉", "有时感觉不好时，我就发脾气", "当某些事情使我烦恼时，我常常不由自主地做出些行为", "当遇事不顺心时，我就会生病", "我是一个很有自制力的人", "我简直就像一个不得志的艺术家一样", "我不总是说真话", "当我感到自尊心受伤害时，我就会回避", "我常常不由自主地迫使自己干些过头的事情，以至于其他人不得不限制我", "我的朋友们把我看做乡下佬", "在我愤怒的时候，我常常回避", "我往往对那些确实对我友好的人，比我应该怀疑的人保持更高的警惕性", "我已学得特殊的才能，足以使我毫无问题地渡过一生", "有时，在选举的时候，我往往选那些我几乎不了解的人", "我常常不能按时赴约", "我幻想的多，可在现实生活中做的少", "我羞于与人打交道", "我什么都不怕", "有时我认为我是个天使，有时我认为我是个恶魔", "在比赛时，我只能赢而不能输", "在我愤怒的时候，我变得很愿挖苦人", "在我自尊心受伤害时，我就公开反击", "我认为当我受伤害时，我就应该翻脸", "我每天读报时，不是每个版面都读", "我沮丧时，就会避开", "我对性问题感到害羞", "我总是感到我所认识的某个人象个保护神", "我的处世哲学是：“非理勿信，非理勿做，非理勿视”", "我认为：人有好坏之分", "如果我的上司惹我生气，我可能会在工作中找麻烦或磨洋工，以报复他", "每个人都和我对着干", "我往往对那些我讨厌的人表示友好", "如果我乘坐的飞机的一个发动机失灵；我就会非常紧张", "我认识这样一个人，他什么都能做而且做得合理正直", "如果我感情的发泄会防碍我正从事的事业，那么我就能控制住它", "一些人正在密谋要害我", "我通常可以看到恶境当中好的一面", "在我不得不去做一些我不愿做的事情时，就头痛", "我常常发现我对那些理应仇视的人，表示很友好", "我认为：“人人都有善意”是不存在的，如果你不好，那么你一切都不好", "我决不会对那些我讨厌的人表示愤怒", "我确信生活对我是不公正的", "在严重的打击下，我就会垮下来", "在我意识到不得不面临一场困境的时候，如考试、招工会谈。我就试图想像它会如何，并计划出一些方法去应付它", "医生们决不会真的弄清我患的是什么病", "当某个和我很亲近的人死去时，我并不悲伤", "在我为了利益和人争斗之后，我往往因为我的粗鲁而向人道歉", "发生与我有关的大部分事情并不是我的责任", "当我感觉情绪压抑或焦虑不安时，吃点东西，可以使我感觉好些", "勤奋工作使我感觉好些", "医生不能真的帮我解决问题", "我常听人们说我不暴露自己的感情", "我认为，人们在看电影，戏剧或书籍对所领悟的意义，比这些作品所要表达的意义要多", "我感觉到我有一些不由自主要去做的习惯或仪式行为，并给我带来很多麻烦", "当我紧张时，就喝酒或吃药", "当我心情不愉快时，就想和别人呆在一起", "如果我能够预感到我会沮丧的话，我就能更好地应付它", "无论我怎样发牢骚，从未得到过满意的结果", "我常常发现当环境要引起我强烈的情绪反应时，我就会麻木不仁", "忘我地工作，可使我摆脱情绪上的忧郁和焦虑", "紧张的时候，我就吸烟", "如果我陷入某种危机时，我就地寻找另一个和我具有同样命运的人", "如果我做错了事情，不能受责备", "如果我有攻击他人的想法，我就感觉有种做点事情的需要，以转移这种想法"
+                "我从帮助他人而获得满足，如果不这样做，我就会变得情绪抑郁", "人们常说我是个脾气暴躁的人", "在我没有时间处理某个棘手的事情时，我可以把它搁置一边", "人们总是不公平地对待我", "我通过做一些积极的或预见性的事情来摆脱自己的焦虑不安，如绘画、做木工活等", "偶尔，我把一些今天该做的事情推迟到明天做", "我不知道为什么总是遇到相同的受挫情境", "我能够相当轻松地嘲笑我自己", "我受到挫折时，表现就象个孩子", "在维护我的利益方面，我羞于与人计较", "我比我认识的人中大多数都强", "人们往往虐待我", "如果某人骗了我或偷了我的钱，我宁愿他得到帮助，而不是受惩罚", "偶尔，我想一些坏得不能说出口的事情", "偶尔，我因一些下流的笑话而大笑", "人们说我象一只驼鸟，把自己的头埋入沙中，换句话说，我往往有意忽视一些不愉快的事情。", "我常常不能竭尽全力地与人竞争", "我常感到比和我在一起的人强", "某人正在想剥夺我所得到的一切", "我有时发怒", "我时常在某种内在力量的驱使下，不由自主地做出些行为", "我宁愿饿死而不愿被迫吃饭", "我常常故意忽视一些危险，似乎我是个超人", "我以有贬低别人威望的能力而自豪", "人们告诉我：我总有被害的感觉", "有时感觉不好时，我就发脾气", "当某些事情使我烦恼时，我常常不由自主地做出些行为", "当遇事不顺心时，我就会生病", "我是一个很有自制力的人", "我简直就像一个不得志的艺术家一样", "我不总是说真话", "当我感到自尊心受伤害时，我就会回避", "我常常不由自主地迫使自己干些过头的事情，以至于其他人不得不限制我", "我的朋友们把我看做乡下佬", "在我愤怒的时候，我常常回避", "我往往对那些确实对我友好的人，比我应该怀疑的人保持更高的警惕性", "我已学得特殊的才能，足以使我毫无问题地渡过一生", "有时，在选举的时候，我往往选那些我几乎不了解的人", "我常常不能按时赴约", "我幻想的多，可在现实生活中做的少", "我羞于与人打交道", "我什么都不怕", "有时我认为我是个天使，有时我认为我是个恶魔", "在比赛时，我只能赢而不能输", "在我愤怒的时候，我变得很愿挖苦人", "在我自尊心受伤害时，我就公开反击", "我认为当我受伤害时，我就应该翻脸", "我每天读报时，不是每个版面都读", "我沮丧时，就会避开", "我对性问题感到害羞", "我总是感到我所认识的某个人象个保护神", "我的处世哲学是：“非理勿信，非理勿做，非理勿视”", "我认为：人有好坏之分", "如果我的上司惹我生气，我可能会在工作中找麻烦或磨洋工，以报复他", "每个人都和我对着干", "我往往对那些我讨厌的人表示友好", "如果我乘坐的飞机的一个发动机失灵；我就会非常紧张", "我认识这样一个人，他什么都能做而且做得合理正直", "如果我感情的发泄会防碍我正从事的事业，那么我就能控制住它", "一些人正在密谋要害我", "我通常可以看到恶境当中好的一面", "在我不得不去做一些我不愿做的事情时，就头痛", "我常常发现我对那些理应仇视的人，表示很友好", "我认为：“人人都有善意”是不存在的，如果你不好，那么你一切都不好", "我决不会对那些我讨厌的人表示愤怒", "我确信生活对我是不公正的", "在严重的打击下，我就会垮下来", "在我意识到不得不面临一场困境的时候，如考试、招工会谈。我就试图想像它会如何，并计划出一些方法去应付它", "医生们决不会真的弄清我患的是什么病", "当某个和我很亲近的人死去时，我并不悲伤", "在我为了利益和人争斗之后，我往往因为我的粗鲁而向人道歉", "发生与我有关的大部分事情并不是我的责任", "当我感觉情绪压抑或焦虑不安时，吃点东西，可以使我感觉好些", "勤奋工作使我感觉好些", "医生不能真的帮我解决问题", "我常听人们说我不暴露自己的感情", "我认为，人们在看电影，戏剧或书籍对所领悟的意义，比这些作品所要表达的意义要多", "我感觉到我有一些不由自主要去做的习惯或仪式行为，并给我带来很多麻烦", "当我紧张时，就喝酒或吃药", "当我心情不愉快时，就想和别人呆在一起", "如果我能够预感到我会沮SA的话，我就能更好地应付它", "无论我怎样发牢骚，从未得到过满意的结果", "我常常发现当环境要引起我强烈的情绪反应时，我就会麻木不仁", "忘我地工作，可使我摆脱情绪上的忧郁和焦虑", "紧张的时候，我就吸烟", "如果我陷入某种危机时，我就地寻找另一个和我具有同样命运的人", "如果我做错了事情，不能受责备", "如果我有攻击他人的想法，我就感觉有种做点事情的需要，以转移这种想法"
             ];
             
             const factors = {
@@ -182,7 +175,8 @@
                 '假性利他 (Pseudo-altruism)': '通过帮助他人满足自身心理需求。', '伴无能之全能 (Omnipotence)': '交替体验“无所不能”和“极度无能”的感觉。',
                 '隔离 (Isolation)': '将情感与事件分离，用理智化方式处理。', '同一化 (Identification)': '通过模仿或认同他人来增强自我价值感。',
                 '否认 (Denial)': '拒绝承认现实中令人痛苦的部分。', '交往倾向 (Affiliation)': '通过社交活动转移注意力，避免面对内心冲突。',
-                '消耗倾向 (Consumption)': '通过过度消耗身体或资源缓解心理压力。', '期望 (Anticipation)': '对未来持积极期待，以此应对当前困境。'
+                '消耗倾向 (Consumption)': '通过过度消耗身体或资源缓解心理压力。', '期望 (Anticipation)': '对未来持积极期待，以此应对当前困境。',
+                '掩饰 (Masking)': '倾向于以社会期望的方式回答问题，可能隐藏真实感受。'
             };
             const mechanismIntros_en = {
                 'Projection': 'Attributing one\'s own unacceptable impulses, thoughts, or feelings to others.', 'Passive Aggression': 'Expressing hostility or dissatisfaction in a passive, indirect way.',
@@ -196,7 +190,8 @@
                 'Pseudo-altruism': 'Helping others to satisfy one\'s own psychological needs.', 'Omnipotence': 'Alternating between feelings of being all-powerful and extremely incompetent.',
                 'Isolation': 'Separating emotions from events and dealing with them intellectually.', 'Identification': 'Enhancing self-worth by imitating or identifying with others.',
                 'Denial': 'Refusing to acknowledge painful aspects of reality.', 'Affiliation': 'Diverting attention from internal conflicts through social activities.',
-                'Consumption': 'Relieving psychological stress by excessively consuming physical or material resources.', 'Anticipation': 'Coping with current difficulties by holding positive expectations for the future.'
+                'Consumption': 'Relieving psychological stress by excessively consuming physical or material resources.', 'Anticipation': 'Coping with current difficulties by holding positive expectations for the future.',
+                'Masking': 'Tendency to answer questions in a socially desirable manner, potentially hiding true feelings.'
             };
 
 
@@ -308,9 +303,11 @@
                         }]
                     },
                     options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
                         elements: { line: { borderWidth: 3 } },
                         scales: { r: { beginAtZero: true, max: 9, min: 1, ticks: { stepSize: 2 } } },
-                        plugins: { legend: { display: canvas.id === 'radar-chart' }, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${context.raw}` } } }
+                        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${context.raw}` } } }
                     }
                 });
             }
@@ -318,41 +315,18 @@
             function displayResults(results) {
                 currentResults = results;
                 
-                const mainChartLabels = [results.mature.name, results.intermediate.name, results.immature.name];
-                const mainChartData = [results.mature.mean, results.intermediate.mean, results.immature.mean];
-                createOrUpdateChart(chartCanvases.main, mainChartLabels, mainChartData, '防御风格平均分', 'rgba(54, 162, 235, 0.2)', 'rgb(54, 162, 235)');
-                
-                for (const factorId in results) {
-                    if (chartCanvases[factorId]) {
-                        const factor = results[factorId];
-                        const labels = Object.keys(factor.mechanisms);
-                        const data = Object.values(factor.mechanisms).map(m => m.mean);
-                        createOrUpdateChart(chartCanvases[factorId], labels, data, factor.name, factor.color, factor.borderColor);
-                    }
-                }
-
-                const factorScores = {
-                    mature: parseFloat(results.mature.mean),
-                    intermediate: parseFloat(results.intermediate.mean),
-                    immature: parseFloat(results.immature.mean)
-                };
+                // Interpretation Text
+                const factorScores = { mature: parseFloat(results.mature.mean), intermediate: parseFloat(results.intermediate.mean), immature: parseFloat(results.immature.mean) };
                 const dominantStyle = Object.keys(factorScores).reduce((a, b) => factorScores[a] > factorScores[b] ? a : b);
-
                 const topThreeCounts = { mature: 0, intermediate: 0, immature: 0 };
-                results.topThree.forEach(m => {
-                    topThreeCounts[m.factorId]++;
-                });
+                results.topThree.forEach(m => { topThreeCounts[m.factorId]++; });
                 
-                let interpretationHTML = `<div class="bg-gray-50 p-4 rounded-lg"><h3 class="text-xl font-semibold text-center mb-4 text-gray-800">防御机制解读</h3>`;
+                let interpretationHTML = `<div class="bg-gray-50 p-4 rounded-lg"><h3 class="text-xl font-semibold text-center mb-4 text-gray-800">核心解读</h3>`;
                 interpretationHTML += `<p class="text-center mb-4 text-sm">您使用最多的防御风格是：<strong>${results[dominantStyle].name}</strong>。</p>`;
                 interpretationHTML += `<div class="mb-4"><h4 class="font-semibold text-green-700">您最常用的三种防御机制是：</h4><ul class="list-disc list-inside ml-4 text-sm space-y-1">`;
-                results.topThree.forEach(m => {
-                    interpretationHTML += `<li><strong>${m.name} (均分: ${m.mean.toFixed(2)})</strong>: ${mechanismIntros[m.name]}</li>`;
-                });
+                results.topThree.forEach(m => { interpretationHTML += `<li><strong>${m.name} (均分: ${m.mean.toFixed(2)})</strong>: ${mechanismIntros[m.name]}</li>`; });
                 interpretationHTML += `</ul></div><div class="mb-4"><h4 class="font-semibold text-blue-700">您最少使用的三种防御机制是：</h4><ul class="list-disc list-inside ml-4 text-sm space-y-1">`;
-                results.bottomThree.forEach(m => {
-                    interpretationHTML += `<li><strong>${m.name} (均分: ${m.mean.toFixed(2)})</strong>: ${mechanismIntros[m.name]}</li>`;
-                });
+                results.bottomThree.forEach(m => { interpretationHTML += `<li><strong>${m.name} (均分: ${m.mean.toFixed(2)})</strong>: ${mechanismIntros[m.name]}</li>`; });
                 interpretationHTML += `</ul></div>`;
                 interpretationHTML += `<div class="border-t pt-4 mt-4"><p class="text-sm">在您最常用的三种防御机制中，有 <strong>${topThreeCounts.mature}</strong> 种成熟防御，<strong>${topThreeCounts.intermediate}</strong> 种中间型防御，以及 <strong>${topThreeCounts.immature}</strong> 种不成熟防御。</p>`;
                 if (topThreeCounts.immature >= 2) {
@@ -360,44 +334,86 @@
                 }
                 interpretationHTML += `</div></div>`;
                 interpretationContainer.innerHTML = interpretationHTML;
-
-
+                
+                // Summary Table
                 let summaryHTML = `<h3 class="text-xl font-semibold text-center mb-4 text-gray-800">防御风格总览</h3>
-                    <table class="min-w-full divide-y divide-gray-200 mb-8">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">防御风格</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">平均分</th>
-                            </tr>
-                        </thead>
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50"><tr><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">防御风格</th><th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">平均分</th></tr></thead>
                         <tbody class="bg-white divide-y divide-gray-200">`;
-                for (const factorId in results) {
-                     if(factorId === 'topThree' || factorId === 'bottomThree') continue;
-                    summaryHTML += `<tr>
-                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${results[factorId].name}</td>
-                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500 font-bold">${results[factorId].mean}</td>
-                    </tr>`;
-                }
+                Object.keys(results).filter(id => ['mature', 'intermediate', 'immature', 'masking'].includes(id)).forEach(factorId => {
+                    summaryHTML += `<tr><td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${results[factorId].name}</td><td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500 font-bold">${results[factorId].mean}</td></tr>`;
+                });
                 summaryHTML += `</tbody></table>`;
                 resultsSummaryContainer.innerHTML = summaryHTML;
 
-                let detailHTML = `<h3 class="text-xl font-semibold text-center mb-4 text-gray-800">各项防御机制得分</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-6">`;
-                for (const factorId in results) {
-                    if(factorId === 'topThree' || factorId === 'bottomThree') continue;
-                    detailHTML += `<div><h4 class="text-lg font-semibold text-gray-700 mb-2">${results[factorId].name}</h4>
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">机制</th><th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">均分</th></tr></thead>
+                // Main Chart
+                const mainChartLabels = [results.mature.name, results.intermediate.name, results.immature.name];
+                const mainChartData = [results.mature.mean, results.intermediate.mean, results.immature.mean];
+                if (charts[chartCanvases.main.id]) charts[chartCanvases.main.id].destroy();
+                charts[chartCanvases.main.id] = new Chart(chartCanvases.main, {
+                     type: 'radar',
+                    data: {
+                        labels: mainChartLabels,
+                        datasets: [{
+                            label: '防御风格平均分', data: mainChartData, fill: true,
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)', borderColor: 'rgb(54, 162, 235)',
+                            pointBackgroundColor: 'rgb(54, 162, 235)', pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff', pointHoverBorderColor: 'rgb(54, 162, 235)'
+                        }]
+                    },
+                    options: {
+                        elements: { line: { borderWidth: 3 } },
+                        scales: { r: { beginAtZero: true, max: 9, min: 1, ticks: { stepSize: 2 } } },
+                        plugins: { legend: { display: true }, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${context.raw}` } } }
+                    }
+                });
+
+
+                // Detailed Tables and Charts
+                let detailHTML = `<h3 class="text-xl font-semibold text-center mb-4 text-gray-800 border-t pt-8 mt-8">各项防御机制得分详情</h3>`;
+                const factorOrder = ['mature', 'intermediate', 'immature', 'masking'];
+                factorOrder.forEach(factorId => {
+                     if (!results[factorId]) return;
+                     const factor = results[factorId];
+                     detailHTML += `<div class="border-t pt-6 mt-6"><h4 class="text-lg font-semibold text-gray-700 mb-4">${factor.name}</h4>`;
+                    
+                     if (['mature', 'intermediate', 'immature'].includes(factorId)) {
+                        detailHTML += `<div class="w-full max-w-sm mx-auto mb-6">
+                                        <div class="relative h-auto w-full">
+                                            <canvas id="${factorId}-radar-chart-detail"></canvas>
+                                        </div>
+                                      </div>`;
+                     }
+
+                     detailHTML += `<div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50"><tr>
+                                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">机制</th>
+                                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">均分</th>
+                                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">解释</th>
+                            </tr></thead>
                             <tbody class="bg-white divide-y divide-gray-200">`;
-                    for (const mechName in results[factorId].mechanisms) {
+                    for (const mechName in factor.mechanisms) {
                         detailHTML += `<tr>
-                            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-800">${mechName}</td>
-                            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500">${results[factorId].mechanisms[mechName].mean}</td>
+                            <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-800 font-semibold">${mechName}</td>
+                            <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500">${factor.mechanisms[mechName].mean}</td>
+                            <td class="px-3 py-3 text-sm text-gray-600" style="white-space: normal;">${mechanismIntros[mechName] || ''}</td>
                         </tr>`;
                     }
-                    detailHTML += `</tbody></table></div>`;
-                }
-                detailHTML += `</div>`;
+                    detailHTML += `</tbody></table></div></div>`;
+                });
                 resultsDetailContainer.innerHTML = detailHTML;
+
+                // Render detailed charts
+                factorOrder.forEach(factorId => {
+                    if (['mature', 'intermediate', 'immature'].includes(factorId)) {
+                        const canvas = document.getElementById(`${factorId}-radar-chart-detail`);
+                        chartCanvases[factorId] = canvas; // Store canvas ref
+                        const factor = results[factorId];
+                        const labels = Object.keys(factor.mechanisms);
+                        const data = Object.values(factor.mechanisms).map(m => m.mean);
+                        createOrUpdateChart(canvas, labels, data, factor.name, factor.color, factor.borderColor);
+                    }
+                });
                 
                 resultsModal.classList.remove('hidden');
                 setTimeout(() => {
@@ -421,38 +437,19 @@
             async function exportToPDF() {
                 try {
                     const doc = new jsPDF();
+                    const pageWidth = doc.internal.pageSize.getWidth();
+                    let finalY = 20;
+
+                    // Page 1: Title and Core Interpretation
                     doc.setFont("helvetica", "bold");
                     doc.setFontSize(18);
-                    doc.text("Defense Style Questionnaire (DSQ) Results", 105, 15, { align: 'center' });
+                    doc.text("Defense Style Questionnaire (DSQ) Results", pageWidth / 2, finalY, { align: 'center' });
+                    finalY += 15;
 
-                    let finalY = 25;
-                    
-                    doc.addImage(chartCanvases.main.toDataURL('image/png'), 'PNG', 40, finalY, 130, 100);
-                    finalY += 110;
-
-                    const chartsToExport = ['immature', 'mature', 'intermediate'];
-                    for (const id of chartsToExport) {
-                        if (finalY > 190) { doc.addPage(); finalY = 20; }
-                        doc.setFontSize(14);
-                        doc.text(currentResults[id].name_en, 105, finalY, { align: 'center' });
-                        finalY += 5;
-                        doc.addImage(chartCanvases[id].toDataURL('image/png'), 'PNG', 55, finalY, 100, 80);
-                        finalY += 90;
-                    }
-                    
-                    doc.addPage();
-                    finalY = 20;
-
-                    doc.setFont("helvetica", "bold");
                     doc.setFontSize(14);
-                    doc.text("Defense Mechanism Interpretation", 14, finalY);
+                    doc.text("Core Interpretation", 14, finalY);
                     finalY += 8;
-                    
-                    const factorScores = {
-                        mature: parseFloat(currentResults.mature.mean),
-                        intermediate: parseFloat(currentResults.intermediate.mean),
-                        immature: parseFloat(currentResults.immature.mean)
-                    };
+                    const factorScores = { mature: parseFloat(currentResults.mature.mean), intermediate: parseFloat(currentResults.intermediate.mean), immature: parseFloat(currentResults.immature.mean) };
                     const dominantStyleId = Object.keys(factorScores).reduce((a, b) => factorScores[a] > factorScores[b] ? a : b);
                     doc.setFont("helvetica", "normal");
                     doc.setFontSize(10);
@@ -465,14 +462,11 @@
                     finalY += 6;
                     doc.setFont("helvetica", "normal");
                     doc.setFontSize(9);
-                    let topThreeText = currentResults.topThree.map(m => {
-                        const en_name = getEnglishMechanismName(m.name);
-                        return `${en_name} (Mean: ${m.mean.toFixed(2)}):\n${mechanismIntros_en[en_name]}`;
-                    }).join('\n\n');
+                    let topThreeText = currentResults.topThree.map(m => { const en_name = getEnglishMechanismName(m.name); return `${en_name} (Mean: ${m.mean.toFixed(2)}): ${mechanismIntros_en[en_name] || ''}`; }).join('\n\n');
                     let splitText = doc.splitTextToSize(topThreeText, 180);
                     doc.text(splitText, 16, finalY);
                     finalY += (splitText.length * 3.5) + 8;
-
+                    
                     if (finalY > 250) { doc.addPage(); finalY = 20; }
                     doc.setFont("helvetica", "bold");
                     doc.setFontSize(11);
@@ -480,66 +474,91 @@
                     finalY += 6;
                     doc.setFont("helvetica", "normal");
                     doc.setFontSize(9);
-                    let bottomThreeText = currentResults.bottomThree.map(m => {
-                        const en_name = getEnglishMechanismName(m.name);
-                        return `${en_name} (Mean: ${m.mean.toFixed(2)}):\n${mechanismIntros_en[en_name]}`;
-                    }).join('\n\n');
+                    let bottomThreeText = currentResults.bottomThree.map(m => { const en_name = getEnglishMechanismName(m.name); return `${en_name} (Mean: ${m.mean.toFixed(2)}): ${mechanismIntros_en[en_name] || ''}`; }).join('\n\n');
                     splitText = doc.splitTextToSize(bottomThreeText, 180);
                     doc.text(splitText, 16, finalY);
                     finalY += (splitText.length * 3.5) + 8;
-
+                    
                     const topThreeCounts = { mature: 0, intermediate: 0, immature: 0 };
                     currentResults.topThree.forEach(m => { topThreeCounts[m.factorId]++; });
                     let summaryText = `Among your top 3 defenses, there are ${topThreeCounts.mature} mature, ${topThreeCounts.intermediate} intermediate, and ${topThreeCounts.immature} immature defenses.`;
-                    if (topThreeCounts.immature >= 2) {
-                        summaryText += `\nNote: You tend to rely more on immature defense mechanisms. While sometimes effective in the short term, they may hinder long-term personal growth. It's advisable to focus on developing more mature coping strategies.`;
-                    }
-                    if (finalY > 250) { doc.addPage(); finalY = 20; }
+                    if (topThreeCounts.immature >= 2) { summaryText += `\nNote: You tend to rely more on immature defense mechanisms. While sometimes effective in the short term, they may hinder long-term personal growth. It's advisable to focus on developing more mature coping strategies.`; }
+                    if (finalY > 240) { doc.addPage(); finalY = 20; }
                     doc.setFont("helvetica", "bold");
                     doc.setFontSize(10);
                     splitText = doc.splitTextToSize(summaryText, 180);
                     doc.text(splitText, 14, finalY);
-                    finalY += (splitText.length * 5) + 10;
-
-
-                    if (finalY > 250) { doc.addPage(); finalY = 20; }
+                    
+                    // Page 2: Summary Table and Chart
+                    doc.addPage();
+                    finalY = 20;
+                    doc.setFont("helvetica", "bold");
                     doc.setFontSize(14);
                     doc.text("Defense Style Summary", 14, finalY);
-                    finalY += 6;
+                    finalY += 8;
                     doc.autoTable({
                         head: [['Style', 'Average Score']],
-                        body: Object.values(currentResults).filter(r => r.name_en).map(res => [res.name_en, res.mean]),
+                        body: Object.values(currentResults).filter(r => r.name_en && r.mean).map(res => [res.name_en, res.mean]),
                         startY: finalY,
                         headStyles: { fillColor: [74, 85, 104] }
                     });
-                    finalY = doc.lastAutoTable.finalY + 15;
+                    finalY = doc.lastAutoTable.finalY + 10;
+                    
+                    doc.text("Defense Style Overview", pageWidth / 2, finalY, {align: 'center'});
+                    finalY += 8;
 
-                    doc.addPage();
-                    finalY = 20;
-                    doc.setFontSize(14);
-                    doc.text("Detailed Mechanism Scores", 14, finalY);
-                    finalY += 6;
+                    const mainCanvas = chartCanvases.main;
+                    const mainImgData = mainCanvas.toDataURL('image/png', 1.0);
+                    const mainAspectRatio = mainCanvas.height / mainCanvas.width;
+                    const mainPdfWidth = 130;
+                    const mainPdfHeight = mainPdfWidth * mainAspectRatio;
+                    const mainPdfX = (pageWidth - mainPdfWidth) / 2;
+                    doc.addImage(mainImgData, 'PNG', mainPdfX, finalY, mainPdfWidth, mainPdfHeight);
 
-                    for (const factorId in currentResults) {
-                         if(factorId === 'topThree' || factorId === 'bottomThree') continue;
+                    // Subsequent Pages: Detailed Charts and Tables
+                    const factorOrder = ['mature', 'intermediate', 'immature', 'masking'];
+                    for (const factorId of factorOrder) {
                         const factor = currentResults[factorId];
-                        if (finalY > 250) { doc.addPage(); finalY = 20; }
+                        if (!factor) continue;
+                        
+                        doc.addPage();
+                        finalY = 20;
+                        
                         doc.setFont("helvetica", "bold");
-                        doc.setFontSize(12);
-                        doc.text(factor.name_en, 14, finalY);
-                        finalY += 6;
+                        doc.setFontSize(14);
+                        doc.text(factor.name_en, pageWidth / 2, finalY, {align: 'center'});
+                        finalY += 10;
+
+                        if (chartCanvases[factorId]) {
+                            const canvas = chartCanvases[factorId];
+                            const imgData = canvas.toDataURL('image/png', 1.0);
+                            const aspectRatio = canvas.height / canvas.width;
+                            const pdfWidth = 100;
+                            const pdfHeight = pdfWidth * aspectRatio;
+                            const pdfX = (pageWidth - pdfWidth) / 2;
+                            doc.addImage(imgData, 'PNG', pdfX, finalY, pdfWidth, pdfHeight);
+                            finalY += pdfHeight + 5;
+                        }
+
                         const bodyData = Object.entries(factor.mechanisms).map(([name, data]) => {
-                            return [getEnglishMechanismName(name), data.mean];
+                            const en_name = getEnglishMechanismName(name);
+                            return [en_name, data.mean, mechanismIntros_en[en_name] || ''];
                         });
+                        
                         doc.autoTable({
-                            head: [['Mechanism', 'Average Score']],
+                            head: [['Mechanism', 'Avg Score', 'Interpretation']],
                             body: bodyData,
                             startY: finalY,
                             theme: 'grid',
                             headStyles: { fillColor: [241, 243, 244] , textColor: [0,0,0]},
-                            styles: { fontSize: 9 }
+                            styles: { fontSize: 8, cellPadding: 2 },
+                            columnStyles: {
+                                0: { cellWidth: 40 },
+                                1: { cellWidth: 20 },
+                                2: { cellWidth: 'auto' }
+                            }
                         });
-                        finalY = doc.lastAutoTable.finalY + 10;
+                        finalY = doc.lastAutoTable.finalY + 15;
                     }
 
                     doc.save("DSQ-Results.pdf");
@@ -548,6 +567,7 @@
                     showError("导出PDF失败 (Failed to export PDF.)");
                 }
             }
+
 
             function exportToExcel() {
                 const data = [["Question No.", "Question", "Answer (1-9)"]];
@@ -610,3 +630,4 @@
     </script>
 </body>
 </html>
+
